@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest';
 import { Array as Arr, Option } from 'effect';
 
 import {
+  applyGrab,
   applyHit,
   applyShot,
   checkTrigger,
@@ -25,6 +26,7 @@ import {
   respawnDelayMs,
   type WeaponId,
   weapons,
+  weaponsAt,
 } from '../src/game/tuning.ts';
 
 const at = (position: Vec3): PlayerState => ({
@@ -187,6 +189,13 @@ describe('hit validation', () => {
     );
   });
 
+  it('judges range by the match paintball speed', () => {
+    const far = aliceAt([0, 1.35, -(range + 50)]);
+    const farHit = hit({ point: [0, 1.5, -(range + 49.7)] });
+    assert.strictEqual(validateHit(far, 'host', farHit, now), 'OutOfRange');
+    assert.isUndefined(validateHit(far, 'host', farHit, now, weaponsAt(2)));
+  });
+
   it('rejects a point no ball reaches in its lifetime', () => {
     // Gravity costs a ball height: as far up as it can go level is too far.
     const above = aliceAt([0, range, 0]);
@@ -250,7 +259,7 @@ describe('respawns', () => {
     assert.deepStrictEqual(early.outbox, []);
   });
 
-  it('respawns at the spawn furthest from living players', () => {
+  it('respawns at a spawn clear of living players', () => {
     const { match } = applyHit(arena(), 'host', hit(), 0);
     const { match: next, outbox } = respawnDue(match, respawnDelayMs, spawns);
     assert.deepStrictEqual(outbox, [
@@ -263,6 +272,27 @@ describe('respawns', () => {
     assert.isUndefined(
       validateHit(next, 'host', hit({ point: [100, 1.5, 100] }), now),
     );
+  });
+
+  it('picks at random among spawns clear of living players', () => {
+    const clear: ReadonlyArray<Vec3> = [
+      [0, 1.35, 5],
+      [40, 1.35, 0],
+      [-40, 1.35, 0],
+      [0, 1.35, 90],
+    ];
+    const others: ReadonlyArray<Vec3> = [[0, 1.35, 0]];
+    assert.deepStrictEqual(pickSpawn(clear, others, 0), [40, 1.35, 0]);
+    assert.deepStrictEqual(pickSpawn(clear, others, 0.5), [-40, 1.35, 0]);
+    assert.deepStrictEqual(pickSpawn(clear, others, 0.99), [0, 1.35, 90]);
+  });
+
+  it('takes the furthest spawn when none is clear', () => {
+    const near: ReadonlyArray<Vec3> = [
+      [0, 1.35, 5],
+      [0, 1.35, 20],
+    ];
+    assert.deepStrictEqual(pickSpawn(near, [[0, 1.35, 0]], 0.7), [0, 1.35, 20]);
   });
 
   it('falls back to the origin without spawn points', () => {
@@ -405,5 +435,113 @@ describe('fire rate fairness', () => {
       validateHit(arena(), 'host', hit(), flight + 1),
       'NoShot',
     );
+  });
+});
+
+describe('power-ups', () => {
+  const pads = [
+    { kind: 'launcher', position: [0, -10] },
+    { kind: 'xray', position: [20, 0] },
+  ] as const;
+  const grab = (player: string, pad: number) => Net.Grab.make({ player, pad });
+
+  it('gives a player standing on a ready pad its power-up', () => {
+    const step = applyGrab(arena(), pads, [0, 0], 'bob', grab('bob', 1), 5);
+    assert.isUndefined(step.rejected);
+    assert.deepStrictEqual(step.outbox, [
+      Net.PoweredUp.make({ player: 'bob', pad: 1, kind: 'xray' }),
+    ]);
+    assert.isAbove(step.timers[1] ?? 0, 5);
+    const again = applyGrab(
+      step.match,
+      pads,
+      step.timers,
+      'host',
+      grab('host', 1),
+      6,
+    );
+    assert.strictEqual(again.rejected, 'NotReady');
+  });
+
+  it('refuses spoofed, dead, distant and taken grabs', () => {
+    const match = arena();
+    assert.strictEqual(
+      applyGrab(match, pads, [0, 0], 'host', grab('bob', 1), 0).rejected,
+      'NotPlayer',
+    );
+    assert.strictEqual(
+      applyGrab(match, pads, [0, 0], 'host', grab('host', 1), 0).rejected,
+      'TooFar',
+    );
+    assert.strictEqual(
+      applyGrab(match, pads, [0, 99], 'bob', grab('bob', 1), 0).rejected,
+      'NotReady',
+    );
+    const dead = applyHit(match, 'host', hit(), 0).match;
+    assert.strictEqual(
+      applyGrab(dead, pads, [0, 0], 'alice', grab('alice', 0), 0).rejected,
+      'PlayerDead',
+    );
+  });
+
+  it('allows launcher shots only for rounds a pad granted', () => {
+    const match = arena();
+    assert.strictEqual(
+      applyShot(match, 'alice', shot('alice', 'launcher'), 0).rejected,
+      'NoPowerUp',
+    );
+    let armed = applyGrab(
+      match,
+      pads,
+      [0, 0],
+      'alice',
+      grab('alice', 0),
+      0,
+    ).match;
+    for (let round = 0; round < weapons.launcher.magazine; round++) {
+      const step = applyShot(
+        armed,
+        'alice',
+        shot('alice', 'launcher'),
+        round * 2000,
+      );
+      assert.isUndefined(step.rejected);
+      armed = step.match;
+    }
+    assert.strictEqual(
+      applyShot(armed, 'alice', shot('alice', 'launcher'), 9000).rejected,
+      'NoPowerUp',
+    );
+  });
+
+  it('lets a launcher burst splat a player within its blast', () => {
+    const armed = applyShot(
+      applyGrab(arena(), pads, [0, 0], 'alice', grab('alice', 0), 0).match,
+      'alice',
+      shot('alice', 'launcher'),
+      0,
+    ).match;
+    const burst = (point: Vec3) =>
+      validateHit(
+        armed,
+        'alice',
+        hit({ shooter: 'alice', target: 'host', point, weapon: 'launcher' }),
+        100,
+      );
+    assert.isUndefined(burst([0, 1.35, -5]));
+    assert.strictEqual(burst([0, 1.35, -9]), 'MissedTarget');
+  });
+
+  it('takes the launcher from a player who is eliminated', () => {
+    const armed = applyGrab(
+      arena(),
+      pads,
+      [0, 0],
+      'alice',
+      grab('alice', 0),
+      0,
+    ).match;
+    const dead = applyHit(armed, 'host', hit(), 0).match;
+    assert.strictEqual(dead.get('alice')?.launcher, 0);
   });
 });

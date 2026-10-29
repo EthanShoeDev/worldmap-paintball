@@ -226,13 +226,6 @@
         "shell-hook"
       ]
     },
-    "knip.ts": {
-      "sha256": "9951caf46adbd4efc1701cc8b7eafacb26f0d2e1aea76e5a23ccab3e03c7b712",
-      "strategy": "managed",
-      "owned": [
-        "workspaces"
-      ]
-    },
     "oxfmt.config.ts": {
       "sha256": "f89f37867529cefea60972b3f9c5e9a17411f8ac9c6ac26e9f69d6dddf5e56db",
       "strategy": "managed",

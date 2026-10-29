@@ -31,6 +31,25 @@ export const Terrain = Schema.Struct({
   heights: Schema.Array(Schema.Finite),
 });
 
+// Arena sizes a lobby can pick, as half sizes in metres: 200, 300 and 450 m
+// across. Presets rather than any size, so bakes share cache entries.
+export const ArenaSize = Schema.Literals(['small', 'medium', 'large']);
+export type ArenaSize = typeof ArenaSize.Type;
+
+export const arenaHalfSizes: Record<ArenaSize, number> = {
+  small: 100,
+  medium: 150,
+  large: 225,
+};
+
+// Names one bake of an arena. A lobby pins the bake its host sees, and every
+// member asks for exactly that one, so all play the same ground even while a
+// partial bake is being retried.
+export const BakeId = Schema.String.check(Schema.isPattern(/^[0-9a-z]{1,16}$/));
+
+export const ArenaLayer = Schema.Literals(['terrain', 'footprints']);
+export type ArenaLayer = typeof ArenaLayer.Type;
+
 export const Arena = Schema.Struct({
   lat: Schema.Finite,
   lon: Schema.Finite,
@@ -40,6 +59,13 @@ export const Arena = Schema.Struct({
   areas: Schema.Array(Area),
   // Absent when elevation data could not be fetched: the ground is flat.
   terrain: Schema.optionalKey(Terrain),
+  // Optional layers that failed to load for this bake. The server never
+  // stores such a bake, so asking again a minute later bakes afresh.
+  missing: Schema.optionalKey(Schema.Array(ArenaLayer)),
+  bake: Schema.optionalKey(BakeId),
+  // Set by the client from a lobby's map settings, never baked: the arena is
+  // the circle of radius `halfSize` rather than the whole square.
+  round: Schema.optionalKey(Schema.Literal(true)),
 });
 
 export type Terrain = typeof Terrain.Type;
@@ -95,6 +121,8 @@ export class ArenasGroup extends HttpApiGroup.make('arenas').add(
       lon: Schema.FiniteFromString.check(
         Schema.isBetween({ minimum: -180, maximum: 180 }),
       ),
+      size: Schema.optionalKey(ArenaSize),
+      bake: Schema.optionalKey(BakeId),
     },
     success: Arena,
     error: [MapDataError, OutsideCoverage, RateLimited],

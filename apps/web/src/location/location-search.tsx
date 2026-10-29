@@ -35,34 +35,34 @@ export const LocationSearch = () => {
         }}
       >
         <input
-          className='min-w-0 flex-1 rounded border border-slate-300 px-3 py-2'
+          className='min-w-0 flex-1 field px-3 py-2'
           placeholder='Address or "51.5007, -0.1246"'
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         <button
-          className='rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50'
+          className='button-ghost px-4 py-2'
           type='submit'
           disabled={tooShort}
         >
           Find
         </button>
       </form>
-      {places.waiting && <p className='text-sm text-slate-500'>Searching…</p>}
+      {places.waiting && <p className='text-sm text-muted'>Searching…</p>}
       {AsyncResult.isFailure(places) && (
-        <p className='text-sm text-red-600'>
+        <p className='text-sm text-red-400'>
           Search failed: {failureMessage(places.cause)}
         </p>
       )}
       {AsyncResult.isSuccess(places) &&
         (places.value.length === 0 ? (
-          <p className='text-sm text-slate-500'>No places found.</p>
+          <p className='text-sm text-muted'>No places found.</p>
         ) : (
           <ul className='flex flex-col gap-1'>
             {Arr.map(places.value, (place) => (
               <li key={`${place.lat},${place.lon}`}>
                 <button
-                  className='w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-transparent'
+                  className='w-full rounded-lg px-2 py-1 text-left text-sm hover:bg-white/10 disabled:text-muted/60 disabled:hover:bg-transparent'
                   type='button'
                   disabled={!place.covered}
                   onClick={() => select({ ...place, flyTo: true })}

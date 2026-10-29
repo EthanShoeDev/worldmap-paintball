@@ -2,6 +2,8 @@ import '@tanstack/react-start/client-only';
 import { useAtom } from '@effect/atom-react';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { setWorkerUrl } from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { useEffect, useRef } from 'react';
 import { Layer, Map, type MapRef, Source } from 'react-map-gl/maplibre';
 
@@ -12,6 +14,9 @@ import {
   isCoordinates,
 } from './coordinates.ts';
 import { arenaHalfSize, selectionAtom } from './location-atoms.ts';
+
+// MapLibre looks for its worker beside its own module, which bundling moves.
+setWorkerUrl(workerUrl);
 
 const style = 'https://tiles.openfreemap.org/styles/liberty';
 

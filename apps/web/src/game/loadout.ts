@@ -32,27 +32,60 @@ const perWeapon = <A>(f: (id: WeaponId) => A) =>
 export const makeLoadout = (weapon = defaultWeapon): Loadout => ({
   weapon,
   previous: weapon,
-  ammo: perWeapon((id) => weapons[id].magazine),
+  ammo: perWeapon((id) => (weapons[id].pickup ? 0 : weapons[id].magazine)),
   cooldown: perWeapon(() => 0),
   reload: 0,
   swap: 0,
 });
 
-// Full pods and nothing in progress, the same weapon in hand.
-export const respawnLoadout = (loadout: Loadout) => makeLoadout(loadout.weapon);
+const slotWeapon = (loadout: Loadout) =>
+  weapons[loadout.weapon].pickup ? loadout.previous : loadout.weapon;
+
+// Full pods and nothing in progress, the same weapon in hand; a power-up's
+// weapon is lost.
+export const respawnLoadout = (loadout: Loadout) =>
+  makeLoadout(slotWeapon(loadout));
+
+const swapTo = (loadout: Loadout, weapon: WeaponId): Loadout => ({
+  ...loadout,
+  weapon,
+  previous: loadout.weapon,
+  reload: 0,
+  swap: loadoutTuning.swapTime,
+});
+
+// A power-up's launcher, loaded and raised.
+export const armLauncher = (loadout: Loadout) => {
+  const { magazine } = weapons.launcher;
+  const loaded = { ...loadout, ammo: { ...loadout.ammo, launcher: magazine } };
+  return loadout.weapon === 'launcher' ? loaded : swapTo(loaded, 'launcher');
+};
+
+// The power-up ran out: the launcher is emptied and put away.
+export const disarmLauncher = (loadout: Loadout) => {
+  const emptied = { ...loadout, ammo: { ...loadout.ammo, launcher: 0 } };
+  return loadout.weapon === 'launcher'
+    ? swapTo(emptied, loadout.previous)
+    : emptied;
+};
+
+// The slot weapons, then any loaded power-up weapon, key 4.
+const carried = (ammo: PerWeapon<number>): ReadonlyArray<WeaponId> =>
+  ammo.launcher > 0 ? [...weaponIds, 'launcher'] : weaponIds;
 
 export const selectedWeapon = (
   current: WeaponId,
   selection: WeaponSelection | undefined,
+  ammo: PerWeapon<number>,
 ) => {
   if (!selection) return current;
-  const count = weaponIds.length;
+  const slots = carried(ammo);
+  const count = slots.length;
   const index =
     'slot' in selection
       ? selection.slot
-      : (((weaponIds.indexOf(current) + selection.cycle) % count) + count) %
-        count;
-  return weaponIds[index] ?? current;
+      : (((slots.indexOf(current) + selection.cycle) % count) + count) % count;
+  return slots[index] ?? current;
 };
 
 // One frame: swap, reload and fire, in that order. Switching weapons cancels
@@ -63,20 +96,18 @@ export const stepLoadout = (
   dt: number,
 ) => {
   const cooldown = perWeapon((id) => Math.max(0, loadout.cooldown[id] - dt));
-  const target = selectedWeapon(loadout.weapon, intent.selectWeapon);
-  if (target !== loadout.weapon) {
-    const swapped: Loadout = {
-      ...loadout,
-      weapon: target,
-      previous: loadout.weapon,
-      cooldown,
-      reload: 0,
-      swap: loadoutTuning.swapTime,
-    };
-    return { loadout: swapped, fired: false };
-  }
   const { weapon } = loadout;
   const spec = weapons[weapon];
+  const spent =
+    spec.pickup === true &&
+    loadout.ammo[weapon] === 0 &&
+    cooldown[weapon] === 0;
+  const target = spent
+    ? loadout.previous
+    : selectedWeapon(weapon, intent.selectWeapon, loadout.ammo);
+  if (target !== weapon) {
+    return { loadout: swapTo({ ...loadout, cooldown }, target), fired: false };
+  }
   const swap = Math.max(0, loadout.swap - dt);
   let reload = Math.max(0, loadout.reload - dt);
   let ammo =
@@ -90,6 +121,7 @@ export const stepLoadout = (
     ammo = { ...ammo, [weapon]: rounds - 1 };
   } else if (
     ready &&
+    spec.pickup !== true &&
     rounds < spec.magazine &&
     (intent.reload || (intent.fire && rounds === 0))
   ) {
@@ -136,6 +168,8 @@ export interface CombatView {
   readonly ammo: number;
   readonly reload: number | undefined;
   readonly zoomed: boolean;
+  // Rounds of a power-up's launcher, held or not.
+  readonly launcher: number;
 }
 
 export const combatViewOf = (loadout: Loadout, zoomed: boolean): CombatView => {
@@ -145,6 +179,7 @@ export const combatViewOf = (loadout: Loadout, zoomed: boolean): CombatView => {
     ammo: loadout.ammo[loadout.weapon],
     reload: progress === undefined ? undefined : Math.round(progress * 50) / 50,
     zoomed,
+    launcher: loadout.ammo.launcher,
   };
 };
 
@@ -152,4 +187,5 @@ export const sameCombatView = (a: CombatView, b: CombatView) =>
   a.weapon === b.weapon &&
   a.ammo === b.ammo &&
   a.reload === b.reload &&
-  a.zoomed === b.zoomed;
+  a.zoomed === b.zoomed &&
+  a.launcher === b.launcher;

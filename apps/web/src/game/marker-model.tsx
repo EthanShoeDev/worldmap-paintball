@@ -118,8 +118,8 @@ const geometries = {
       stripe(),
     ],
   }),
-  // A long barrel under a scope, a shoulder stock, and a stick feed on the
-  // left instead of a hopper.
+  // A long barrel under a scope, a shoulder stock, a short bolt handle on the
+  // right, and a magazine instead of a hopper.
   sniper: merged({
     body: [
       receiver(),
@@ -145,6 +145,12 @@ const geometries = {
       ...triggerGuard(),
       part(new BoxGeometry(0.014, 0.03, 0.016), [0, 0.05, -0.06]),
       part(new BoxGeometry(0.014, 0.03, 0.016), [0, 0.05, 0.06]),
+      part(
+        new CylinderGeometry(0.004, 0.004, 0.035, 6),
+        [0.038, 0.012, 0.05],
+        [0, 0, along - 0.35],
+      ),
+      part(new SphereGeometry(0.009, 8, 6), [0.054, 0.006, 0.05]),
     ],
     grip: [
       grip(),
@@ -159,9 +165,9 @@ const geometries = {
     ],
     tint: [
       part(
-        new CylinderGeometry(0.012, 0.012, 0.13, 8),
-        [-0.045, 0.06, -0.06],
-        [0, 0, 0.6],
+        new BoxGeometry(0.026, 0.075, 0.04),
+        [0, -0.07, -0.085],
+        [-0.15, 0, 0],
       ),
       stripe(),
     ],
@@ -197,6 +203,41 @@ const geometries = {
         ]),
       ),
       stripe(),
+    ],
+  }),
+  // A fat tube on the shoulder, painted in the player's colour, with a
+  // front grip and a flip-up sight.
+  launcher: merged({
+    body: [
+      receiver(),
+      part(new BoxGeometry(0.012, 0.045, 0.012), [0, 0.1, -0.22]),
+    ],
+    metal: [
+      ...triggerGuard(),
+      part(
+        new CylinderGeometry(0.052, 0.052, 0.04, 14),
+        [0, muzzle.launcher[1], muzzle.launcher[2] + 0.02],
+        [along, 0, 0],
+      ),
+      part(
+        new CylinderGeometry(0.05, 0.05, 0.04, 14),
+        [0, muzzle.launcher[1], 0.23],
+        [along, 0, 0],
+      ),
+    ],
+    grip: [
+      grip(),
+      part(new BoxGeometry(0.03, 0.09, 0.035), [0, -0.06, -0.24], [0.2, 0, 0]),
+    ],
+    tank: [
+      part(new BoxGeometry(0.03, 0.03, 0.08), [0.06, 0.03, 0.02], [0, 0, 0]),
+    ],
+    tint: [
+      part(
+        new CylinderGeometry(0.045, 0.045, 0.75, 14),
+        [0, muzzle.launcher[1], muzzle.launcher[2] + 0.375],
+        [along, 0, 0],
+      ),
     ],
   }),
 };

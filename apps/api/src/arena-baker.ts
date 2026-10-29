@@ -3,12 +3,11 @@ import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import { Context, Duration, Effect, Layer } from 'effect';
 
 import { ArenaStore } from './arena-store.ts';
-import type { LatLon } from './bake.ts';
 import { BuildingFootprints } from './footprints.ts';
-import { ARENA_MAX_AGE, MapData } from './map-data.ts';
+import { ARENA_MAX_AGE, type ArenaRequest, MapData } from './map-data.ts';
 
 interface ArenaBakerShape {
-  readonly arena: (center: LatLon) => Effect.Effect<Arena, MapDataError>;
+  readonly arena: (request: ArenaRequest) => Effect.Effect<Arena, MapDataError>;
 }
 
 // One object per arena cache key (`MapData.layerDurableObject` names it), so

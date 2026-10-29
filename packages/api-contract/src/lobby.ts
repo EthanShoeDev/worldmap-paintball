@@ -1,7 +1,15 @@
 import { Array, Effect, Schema, String } from 'effect';
 import { SecureRandom } from 'effect/crypto';
 
+import { ArenaSize, BakeId } from './index.ts';
+
 export const MAX_PLAYERS = 8;
+// Bots the host's browser simulates alongside the players.
+export const MAX_BOTS = 7;
+
+export const BotCount = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: MAX_BOTS }),
+);
 
 // No I, O, 0 or 1: codes get read aloud and typed on phones.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -42,6 +50,71 @@ export const Location = Schema.Struct({
 });
 export type Location = typeof Location.Type;
 
+export const MAX_DRAWN_BUILDINGS = 64;
+
+// A house the host traced where the baked arena has none, in the arena's
+// local metres (x east, z south), so it stays put only at this location.
+export const DrawnBuilding = Schema.Struct({
+  footprint: Schema.Array(
+    Schema.Tuple([
+      Schema.Finite.check(Schema.isBetween({ minimum: -500, maximum: 500 })),
+      Schema.Finite.check(Schema.isBetween({ minimum: -500, maximum: 500 })),
+    ]),
+  ).check(Schema.isMinLength(3), Schema.isMaxLength(24)),
+  height: Schema.Finite.check(Schema.isBetween({ minimum: 2, maximum: 40 })),
+});
+export type DrawnBuilding = typeof DrawnBuilding.Type;
+
+// The host's changes to the baked arena. Clients apply them on top of the
+// shared bake, so the server's arena cache stays one entry per place.
+export const ArenaShape = Schema.Literals(['square', 'circle']);
+export type ArenaShape = typeof ArenaShape.Type;
+
+export const MapSettings = Schema.Struct({
+  // Saved and stored settings from before sizes existed are medium.
+  size: ArenaSize.pipe(Schema.withDecodingDefaultKey(Effect.succeed('medium'))),
+  // A circle walls off the square bake's corners, where respawns and
+  // campers otherwise gather.
+  shape: ArenaShape.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed('square')),
+  ),
+  elevationScale: Schema.Finite.check(
+    Schema.isBetween({ minimum: 0, maximum: 5 }),
+  ),
+  buildings: Schema.Array(DrawnBuilding).check(
+    Schema.isMaxLength(MAX_DRAWN_BUILDINGS),
+  ),
+});
+export type MapSettings = typeof MapSettings.Type;
+
+export const defaultMapSettings: MapSettings = {
+  size: 'medium',
+  shape: 'square',
+  elevationScale: 1,
+  buildings: [],
+};
+
+const Multiplier = (maximum: number) =>
+  Schema.Finite.check(Schema.isBetween({ minimum: 0.5, maximum }));
+
+// Mutators the host sets for the match. Every member's game reads them from
+// the lobby, so all browsers agree on movement and ball flight.
+export const MatchRules = Schema.Struct({
+  moveSpeed: Multiplier(2.5),
+  jumpHeight: Multiplier(4),
+  paintballSpeed: Multiplier(2.5),
+  // Everyone on everyone's minimap, all match long.
+  revealPlayers: Schema.Boolean,
+});
+export type MatchRules = typeof MatchRules.Type;
+
+export const defaultMatchRules: MatchRules = {
+  moveSpeed: 1,
+  jumpHeight: 1,
+  paintballSpeed: 1,
+  revealPlayers: false,
+};
+
 export const Player = Schema.Struct({
   id: PlayerId,
   name: PlayerName,
@@ -55,6 +128,17 @@ export const Lobby = Schema.Struct({
   hostId: PlayerId,
   players: Schema.Array(Player).check(Schema.isMaxLength(MAX_PLAYERS)),
   location: Location,
+  // Lobbies stored before these existed decode with the defaults.
+  map: MapSettings.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultMapSettings)),
+  ),
+  bots: BotCount.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
+  rules: MatchRules.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultMatchRules)),
+  ),
+  // The bake of the arena the host sees, which every member fetches; absent
+  // until the host's browser has one.
+  bake: Schema.optionalKey(BakeId),
 });
 export type Lobby = typeof Lobby.Type;
 
@@ -78,6 +162,10 @@ export const ClientMessage = Schema.TaggedUnion({
   LeaveLobby: {},
   SetLocation: { location: Location },
   SetReady: { ready: Schema.Boolean },
+  SetMapSettings: { map: MapSettings },
+  SetBots: { bots: BotCount },
+  SetRules: { rules: MatchRules },
+  PinBake: { bake: BakeId },
   StartMatch: {},
   EndMatch: {},
   Signal: { to: PlayerId, signal: SignalPayload },

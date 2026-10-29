@@ -12,6 +12,7 @@ export const useInput = () => {
   const element = useThree((state) => state.gl.domElement);
   const keyboardMouse = useRef<ReturnType<typeof createKeyboardMouse>>(null);
   const padButtons = useRef<ReadonlyArray<ReadonlyArray<boolean>>>([]);
+  const padSprints = useRef<ReadonlyArray<boolean>>([]);
 
   useEffect(() => {
     const source = createKeyboardMouse(element);
@@ -24,11 +25,17 @@ export const useInput = () => {
 
   return (dt: number) => {
     const pads = connectedGamepads();
-    const intent = mergeIntents(
-      keyboardMouse.current?.read() ?? idleIntent,
-      pollGamepads(pads, dt, padButtons.current),
+    const polled = pollGamepads(
+      pads,
+      dt,
+      padButtons.current,
+      padSprints.current,
     );
     padButtons.current = Arr.map(pads, pressedButtons);
-    return intent;
+    padSprints.current = polled.sprinting;
+    return mergeIntents(
+      keyboardMouse.current?.read() ?? idleIntent,
+      polled.intent,
+    );
   };
 };

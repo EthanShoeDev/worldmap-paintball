@@ -95,32 +95,63 @@ describe('groundGeometry', () => {
 });
 
 describe('spawnPoints', () => {
-  const road = (path: ReadonlyArray<readonly [number, number]>) => ({
-    width: 6,
-    path,
+  const house = (x: number, z: number, half: number) => ({
+    footprint: [
+      [x - half, z - half],
+      [x + half, z - half],
+      [x + half, z + half],
+      [x - half, z + half],
+    ] as const,
+    height: 1,
+  });
+  const empty = { roads: [], buildings: [], areas: [], halfSize: 50 };
+
+  it('scatters points inside the walls, the same on every call', () => {
+    const points = spawnPoints(empty, { count: 20 });
+    assert.lengthOf(points, 20);
+    assert.deepStrictEqual(spawnPoints(empty, { count: 20 }), points);
+    for (const [x, z] of points) {
+      assert.isAtMost(Math.abs(x), 45);
+      assert.isAtMost(Math.abs(z), 45);
+    }
   });
 
-  it('picks road nodes nearest the centre, spaced apart', () => {
-    const points = spawnPoints(
-      [
-        road([
-          [1, 0],
-          [2, 0],
-          [9, 0],
-          [30, 0],
-        ]),
-        road([[0, -5]]),
-      ],
-      { count: 3, spacing: 4 },
+  it('spreads the first spawns apart', () => {
+    const [a, b] = spawnPoints(empty);
+    assert.isDefined(a);
+    assert.isDefined(b);
+    assert.isAbove(Math.hypot(a[0] - b[0], a[1] - b[1]), 50);
+  });
+
+  it('never spawns inside or beside a building, or in water', () => {
+    const pond = {
+      kind: 'water' as const,
+      outline: [
+        [-45, -45],
+        [0, -45],
+        [0, 0],
+        [-45, 0],
+      ] as const,
+    };
+    const points = spawnPoints({
+      ...empty,
+      buildings: [house(20, 20, 15)],
+      areas: [pond],
+    });
+    assert.isAbove(points.length, 10);
+    for (const [x, z] of points) {
+      assert.isFalse(x <= 0 && z <= 0, `in the pond at ${x}, ${z}`);
+      assert.isFalse(
+        Math.abs(x - 20) < 16.5 && Math.abs(z - 20) < 16.5,
+        `in the house at ${x}, ${z}`,
+      );
+    }
+  });
+
+  it('falls back to the centre when nothing is open', () => {
+    assert.deepStrictEqual(
+      spawnPoints({ ...empty, buildings: [house(0, 0, 60)] }),
+      [[0, 0]],
     );
-    assert.deepStrictEqual(points, [
-      [1, 0],
-      [0, -5],
-      [9, 0],
-    ]);
-  });
-
-  it('falls back to the centre without roads', () => {
-    assert.deepStrictEqual(spawnPoints([]), [[0, 0]]);
   });
 });

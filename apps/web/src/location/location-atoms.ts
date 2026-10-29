@@ -1,11 +1,15 @@
+import {
+  arenaHalfSizes,
+  type ArenaSize,
+} from '@worldmap-paintball/api-contract';
 import { Effect } from 'effect';
 import { Atom } from 'effect/reactivity';
 
 import { ApiClient, apiRuntime } from '../api-client.ts';
 import type { Coordinates } from './coordinates.ts';
 
-// Mirrors HALF_SIZE in apps/api/src/map-data.ts; only used to preview the area.
-export const arenaHalfSize = 150;
+// A medium arena, the default; only used to preview the area.
+export const arenaHalfSize = arenaHalfSizes.medium;
 
 const maxResults = 5;
 
@@ -31,9 +35,15 @@ export const placesAtom = apiRuntime.fn(
 // bake already underway.
 export const warmArenaAtom = apiRuntime
   .fn(
-    Effect.fn('warmArena')(function* ({ lat, lon }: Coordinates) {
+    Effect.fn('warmArena')(function* ({
+      lat,
+      lon,
+      size = 'medium',
+    }: Coordinates & { readonly size?: ArenaSize }) {
       const client = yield* ApiClient;
-      yield* client.arenas.get({ query: { lat, lon } }).pipe(Effect.ignore);
+      yield* client.arenas
+        .get({ query: { lat, lon, size } })
+        .pipe(Effect.ignore);
     }),
     { concurrent: true },
   )

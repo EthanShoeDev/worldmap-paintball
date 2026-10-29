@@ -8,6 +8,7 @@ import type { Hit } from './splats.ts';
 import {
   paintballTuning,
   type WeaponId,
+  type Weapons,
   type WeaponSpec,
   weapons,
 } from './tuning.ts';
@@ -43,8 +44,12 @@ export interface Impact {
 }
 
 // One ball per pellet; past the cap the oldest go first.
-export const launch = (balls: Paintballs, volley: Volley) => {
-  const weapon = weapons[volley.weapon];
+export const launch = (
+  balls: Paintballs,
+  volley: Volley,
+  table: Weapons = weapons,
+) => {
+  const weapon = table[volley.weapon];
   const tint = new Color(volley.color);
   for (const dir of pelletDirections(weapon, volley.dir, volley.seed)) {
     balls.push({ ...volley, weapon, dir, tint, age: 0 });
@@ -54,11 +59,17 @@ export const launch = (balls: Paintballs, volley: Volley) => {
 };
 
 // Flies every ball on by `dt`, reports the shooter's own hits, and drops
-// balls that landed or expired. Returns the splats to paint.
+// balls that landed or expired. Returns the splats to paint. A ball with a
+// blast reports where it burst to `onBlast` instead of hitting one player.
 export const advance = (
   balls: Paintballs,
   dt: number,
   impactOf: (ball: Paintball, start: Vec3, end: Vec3) => Impact | undefined,
+  onBlast: (
+    ball: Paintball,
+    point: Vec3,
+    surface: Hit | undefined,
+  ) => void = () => undefined,
 ) => {
   const landed: Array<readonly [Hit, string]> = [];
   let kept = 0;
@@ -73,7 +84,15 @@ export const advance = (
     );
     ball.age += dt;
     if (impact?.surface) landed.push([impact.surface, ball.color]);
-    if (impact?.player) ball.onHit?.(impact.player);
+    const surface = impact?.surface?.point;
+    const burst =
+      impact?.player?.point ??
+      (surface && ([surface.x, surface.y, surface.z] as const));
+    if (ball.weapon.blast !== undefined && burst) {
+      onBlast(ball, burst, impact?.surface);
+    } else if (impact?.player) {
+      ball.onHit?.(impact.player);
+    }
     if (!done) {
       balls[kept] = ball;
       kept += 1;

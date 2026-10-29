@@ -4,7 +4,7 @@ import { Array as Arr } from 'effect';
 
 import { gamepadNamesAtom, pointerLockedAtom } from './hud-atoms.ts';
 import { renderScaleLabel, renderScales } from './render-scale.ts';
-import { renderScaleAtom } from './render-settings.ts';
+import { renderScaleAtom, soundVolumeAtom } from './render-settings.ts';
 
 const controls = [
   ['Move', 'WASD'],
@@ -16,7 +16,7 @@ const controls = [
   ['Switch weapon', '1 / 2 / 3 or wheel'],
   ['Menu', 'Esc'],
   ['Gamepad combat', 'RT fire · LT zoom · X reload'],
-  ['Gamepad other', 'LB / RB or d-pad switch · A jump · L3 sprint'],
+  ['Gamepad other', 'LB / RB or d-pad switch · A jump · click L3 to sprint'],
 ] as const;
 
 // Shown whenever the mouse isn't captured, which is also how play starts.
@@ -31,6 +31,7 @@ export const PauseMenu = ({
   const locked = useAtomValue(pointerLockedAtom);
   const gamepads = useAtomValue(gamepadNamesAtom);
   const [scale, setScale] = useAtom(renderScaleAtom);
+  const [volume, setVolume] = useAtom(soundVolumeAtom);
   if (locked) return null;
   // Gamepad players never capture the mouse; a modal would never close.
   if (gamepads.length > 0) {
@@ -72,6 +73,17 @@ export const PauseMenu = ({
           {scale === 'auto' && ', adjusting to hold the frame rate'}
         </p>
       </fieldset>
+      <label className='mt-4 flex flex-col gap-1 text-sm font-medium'>
+        Sound volume {Math.round(volume * 100)}%
+        <input
+          type='range'
+          min={0}
+          max={1}
+          step={0.05}
+          value={volume}
+          onChange={(event) => setVolume(Number(event.target.value))}
+        />
+      </label>
       <dl className='mt-4 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs'>
         {Arr.map(controls, ([action, keys]) => (
           <div key={action} className='contents'>

@@ -1,6 +1,10 @@
 import '@tanstack/react-start/client-only';
 import { useAtomValue } from '@effect/atom-react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import {
+  defaultMapSettings,
+  defaultMatchRules,
+} from '@worldmap-paintball/api-contract/lobby';
 import { Effect, Fiber, Option } from 'effect';
 import { useEffect, useState } from 'react';
 
@@ -10,7 +14,7 @@ import type { Coordinates } from '../location/coordinates.ts';
 import { Game } from './game.tsx';
 import { Scoreboard } from './match-hud.tsx';
 import { matchViewAtom } from './net/net-game.ts';
-import { lobbyMatchCode, matchStatus } from './net/session.ts';
+import { lobbyAt, lobbyMatchCode, matchStatus } from './net/session.ts';
 
 const resultDelayMs = 4000;
 
@@ -75,6 +79,20 @@ const LobbyClosed = () => {
   );
 };
 
+const useLobbySettings = (coordinates: Coordinates) =>
+  Option.flatMap(useAtomValue(lobbyStateAtom), (snapshot) =>
+    lobbyAt(snapshot, coordinates),
+  ).pipe(
+    Option.match({
+      onNone: () => ({
+        map: defaultMapSettings,
+        rules: defaultMatchRules,
+        bake: undefined,
+      }),
+      onSome: ({ map, rules, bake }) => ({ map, rules, bake }),
+    }),
+  );
+
 const LobbyMatch = ({
   code,
   coordinates,
@@ -86,9 +104,18 @@ const LobbyMatch = ({
     onNone: () => 'closed' as const,
     onSome: (snapshot) => matchStatus(snapshot, code),
   });
+  const { map, rules, bake } = useLobbySettings(coordinates);
   if (status === 'closed') return <LobbyClosed />;
   if (status === 'ended') return <MatchEnded code={code} />;
-  return <Game coordinates={coordinates} networked />;
+  return (
+    <Game
+      coordinates={coordinates}
+      map={map}
+      rules={rules}
+      bake={bake}
+      networked
+    />
+  );
 };
 
 export const PlayAt = ({
@@ -107,8 +134,17 @@ export const PlayAt = ({
   // Latched, so a match that ends leads back to the lobby, not to practice.
   const [code, setCode] = useState(live);
   if (live !== undefined && live !== code) setCode(live);
+  // Practice from a lobby plays its customized map.
+  const { map, rules, bake } = useLobbySettings(coordinates);
   return code === undefined ? (
-    <Game coordinates={coordinates} networked={false} bots={bots} />
+    <Game
+      coordinates={coordinates}
+      map={map}
+      rules={rules}
+      bake={bake}
+      networked={false}
+      bots={bots}
+    />
   ) : (
     <LobbyMatch code={code} coordinates={coordinates} />
   );

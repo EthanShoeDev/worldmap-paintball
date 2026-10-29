@@ -1,12 +1,16 @@
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr } from 'effect';
 
+import { nextRandom } from '../bot-brain.ts';
+import { type Pad, type PadTimers, takePad } from '../powerups.ts';
 import { reachable } from '../projectile.ts';
 import {
   fairnessTuning,
+  powerUpTuning,
   respawnDelayMs,
   spawnHeight,
   type WeaponId,
+  type Weapons,
   weapons,
 } from '../tuning.ts';
 import { distance } from './hit-test.ts';
@@ -30,12 +34,15 @@ export interface Slot {
   readonly score: number;
   readonly deaths: number;
   readonly triggers: ReadonlyMap<WeaponId, Trigger>;
+  // Rounds left of a power-up's weapon, granted by the host with the pad.
+  readonly launcher: number;
 }
 
 export type Match = ReadonlyMap<PlayerId, Slot>;
 
 export type HitEvent = typeof Net.Hit.Type;
 export type ShotEvent = typeof Net.Shot.Type;
+export type GrabEvent = typeof Net.Grab.Type;
 
 const freshSlot: Slot = {
   state: undefined,
@@ -44,6 +51,7 @@ const freshSlot: Slot = {
   score: 0,
   deaths: 0,
   triggers: new Map(),
+  launcher: 0,
 };
 
 export const makeMatch = (ids: ReadonlyArray<PlayerId>): Match =>
@@ -115,9 +123,12 @@ export const applyShot = (
     now,
   );
   if (rejected !== undefined) return refuse(rejected);
+  const pickup = weapons[shot.weapon].pickup === true;
+  if (pickup && slot.launcher <= 0) return refuse('NoPowerUp');
   const triggers = new Map(slot.triggers).set(shot.weapon, trigger);
+  const launcher = pickup ? slot.launcher - 1 : slot.launcher;
   return {
-    match: new Map(match).set(shot.shooter, { ...slot, triggers }),
+    match: new Map(match).set(shot.shooter, { ...slot, triggers, launcher }),
     rejected,
   };
 };
@@ -127,6 +138,7 @@ export const validateHit = (
   from: PlayerId,
   hit: HitEvent,
   now: number,
+  table: Weapons = weapons,
 ) => {
   if (hit.shooter !== from) return 'NotShooter';
   if (hit.shooter === hit.target) return 'SelfHit';
@@ -135,7 +147,7 @@ export const validateHit = (
   if (!shooter?.state || !target?.state) return 'UnknownPlayer';
   if (!shooter.alive) return 'ShooterDead';
   if (!target.alive) return 'TargetDead';
-  const weapon = weapons[hit.weapon];
+  const weapon = table[hit.weapon];
   // A hit rides the same ordered channel as its shot, so it must follow an
   // accepted shot of the same weapon by no more than the ball's flight.
   const fired = shooter.triggers.get(hit.weapon);
@@ -148,7 +160,10 @@ export const validateHit = (
   if (!reachable(weapon, shooter.state.position, hit.point, hitTolerance)) {
     return 'OutOfRange';
   }
-  if (distance(target.state.position, hit.point) > hitTolerance) {
+  if (
+    distance(target.state.position, hit.point) >
+    hitTolerance + (weapon.blast ?? 0)
+  ) {
     return 'MissedTarget';
   }
   return undefined;
@@ -163,8 +178,9 @@ export const applyHit = (
   from: PlayerId,
   hit: HitEvent,
   now: number,
+  table: Weapons = weapons,
 ) => {
-  const rejected = validateHit(match, from, hit, now);
+  const rejected = validateHit(match, from, hit, now, table);
   const shooter = match.get(hit.shooter);
   const target = match.get(hit.target);
   if (rejected !== undefined || !shooter || !target) {
@@ -177,6 +193,7 @@ export const applyHit = (
       alive: false,
       respawnAt: now + respawnDelayMs,
       deaths: target.deaths + 1,
+      launcher: 0,
     });
   const outbox: ReadonlyArray<NetEvent> = [
     Net.Eliminated.make({
@@ -189,22 +206,81 @@ export const applyHit = (
   return { match: next, outbox, rejected };
 };
 
+// Gives a living player the pad they stand on, by the host's last view of
+// them; the launcher's rounds are granted here, the rest run on the client.
+export const applyGrab = (
+  match: Match,
+  pads: ReadonlyArray<Pad>,
+  timers: PadTimers,
+  from: PlayerId,
+  grab: GrabEvent,
+  now: number,
+) => {
+  const refuse = <R extends string>(rejected: R) => ({
+    match,
+    timers,
+    outbox: [],
+    rejected,
+  });
+  const slot = match.get(grab.player);
+  if (grab.player !== from) return refuse('NotPlayer');
+  if (!slot?.state) return refuse('UnknownPlayer');
+  if (!slot.alive) return refuse('PlayerDead');
+  const taken = takePad(
+    pads,
+    timers,
+    grab.pad,
+    slot.state.position,
+    now,
+    powerUpTuning.grabTolerance,
+  );
+  if (taken.rejected !== undefined) return refuse(taken.rejected);
+  const { kind } = taken;
+  const next = new Map(match).set(grab.player, {
+    ...slot,
+    launcher: kind === 'launcher' ? weapons.launcher.magazine : slot.launcher,
+  });
+  const outbox: ReadonlyArray<NetEvent> = [
+    Net.PoweredUp.make({ player: grab.player, pad: grab.pad, kind }),
+  ];
+  return { match: next, timers: taken.timers, outbox, rejected: undefined };
+};
+
 export const spawnFallback: Vec3 = [0, spawnHeight, 0];
 
-// The spawn furthest from every other living player.
+// Respawns land at least this far from every living player when they can.
+export const respawnClearance = 30;
+
+// A spawn picked by `roll` in [0, 1) from those clear of every living player,
+// so respawns don't all crowd into the arena's far corners; with none clear,
+// the one furthest from them.
 export const pickSpawn = (
   spawns: ReadonlyArray<Vec3>,
   others: ReadonlyArray<Vec3>,
+  roll = 0,
 ) => {
+  const clearance = (spawn: Vec3) =>
+    Math.min(...Arr.map(others, (other) => distance(spawn, other)));
+  const clear = Arr.filter(
+    spawns,
+    (spawn) => clearance(spawn) >= respawnClearance,
+  );
+  const picked = clear[Math.floor(roll * clear.length)];
+  if (picked) return picked;
   let best = spawns[0] ?? spawnFallback;
   let bestClearance = -Infinity;
   for (const spawn of spawns) {
-    const clearance = Math.min(
-      ...Arr.map(others, (other) => distance(spawn, other)),
-    );
-    if (clearance > bestClearance) [best, bestClearance] = [spawn, clearance];
+    const gap = clearance(spawn);
+    if (gap > bestClearance) [best, bestClearance] = [spawn, gap];
   }
   return best;
+};
+
+const respawnRoll = (now: number, index: number) => {
+  const [, warm] = nextRandom(
+    ((Math.floor(now) + index * 7919) % 2_147_483_646) + 1,
+  );
+  return nextRandom(warm)[0];
 };
 
 export const initialSpawn = (spawns: ReadonlyArray<Vec3>, index: number) =>
@@ -224,11 +300,15 @@ export const respawnDue = (
 ) => {
   let next = match;
   const outbox: Array<NetEvent> = [];
-  for (const [id, slot] of match) {
+  for (const [index, [id, slot]] of [...match].entries()) {
     if (slot.alive || slot.respawnAt === undefined || slot.respawnAt > now) {
       continue;
     }
-    const position = pickSpawn(spawns, livingPositions(next));
+    const position = pickSpawn(
+      spawns,
+      livingPositions(next),
+      respawnRoll(now, index),
+    );
     next = new Map(next).set(id, {
       ...slot,
       alive: true,

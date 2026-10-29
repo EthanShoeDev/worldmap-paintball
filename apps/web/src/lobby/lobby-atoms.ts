@@ -4,6 +4,8 @@ import {
   ClientMessage,
   type Location,
   makeLobbyCode,
+  type MapSettings,
+  type MatchRules,
 } from '@worldmap-paintball/api-contract/lobby';
 import { Effect, Layer, Option, Stream, SubscriptionRef } from 'effect';
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity';
@@ -73,6 +75,14 @@ export const lobbyMessages = {
   setReady: (ready: boolean) => Client.SetReady.make({ ready }),
   setLocation: (location: Location) =>
     Client.SetLocation.make({ location }, { disableChecks: true }),
+  setMapSettings: (map: MapSettings) =>
+    Client.SetMapSettings.make({ map }, { disableChecks: true }),
+  setBots: (bots: number) =>
+    Client.SetBots.make({ bots }, { disableChecks: true }),
+  setRules: (rules: MatchRules) =>
+    Client.SetRules.make({ rules }, { disableChecks: true }),
+  pinBake: (bake: string) =>
+    Client.PinBake.make({ bake }, { disableChecks: true }),
   startMatch: () => Client.StartMatch.make({}),
   endMatch: () => Client.EndMatch.make({}),
 };

@@ -42,11 +42,15 @@ export const pressedButtons = (pad: PadState) =>
   Arr.map(pad.buttons, (button) => button.pressed || button.value > 0.5);
 
 // `held` is last frame's `pressedButtons`, so a held bumper cycles once.
+// `sprinting` is last frame's sprint: clicking L3 while moving forward turns
+// it on, and it stays on until the stick stops pushing forward, the player
+// fires or aims, or L3 is clicked again.
 export const gamepadIntent = (
   pad: PadState,
   dt: number,
   settings = defaultGamepadSettings,
   held: ReadonlyArray<boolean> = [],
+  sprinting = false,
 ): Intent => {
   const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
   const [moveX, moveY] = applyDeadzone([lx, ly], settings.deadzone);
@@ -58,6 +62,10 @@ export const gamepadIntent = (
   const cycle =
     (tapped(Button.rb, Button.right) ? 1 : 0) -
     (tapped(Button.lb, Button.left) ? 1 : 0);
+  const forward = -moveY > 0;
+  const busy = pressed(Button.rt) || pressed(Button.lt);
+  const sprint =
+    forward && !busy && (tapped(Button.l3) ? !sprinting : sprinting);
   return {
     move: [moveX, -moveY],
     look: [
@@ -65,7 +73,7 @@ export const gamepadIntent = (
       lookY * settings.lookSpeed[1] * dt,
     ],
     jump: pressed(Button.a),
-    sprint: pressed(Button.l3),
+    sprint,
     fire: pressed(Button.rt),
     reload: pressed(Button.x),
     zoom: pressed(Button.lt),
@@ -73,13 +81,21 @@ export const gamepadIntent = (
   };
 };
 
-// `held` holds each pad's `pressedButtons` from last frame, in pad order.
+// `held` holds each pad's `pressedButtons` from last frame, and `sprinting`
+// each pad's sprint, in pad order. Returns the merged intent and each pad's
+// sprint, to pass back next frame.
 export const pollGamepads = (
   pads: ReadonlyArray<PadState>,
   dt: number,
   held: ReadonlyArray<ReadonlyArray<boolean>> = [],
+  sprinting: ReadonlyArray<boolean> = [],
   settings = defaultGamepadSettings,
-) =>
-  Arr.reduce(pads, idleIntent, (intent, pad, index) =>
-    mergeIntents(intent, gamepadIntent(pad, dt, settings, held[index])),
+) => {
+  const intents = Arr.map(pads, (pad, index) =>
+    gamepadIntent(pad, dt, settings, held[index], sprinting[index]),
   );
+  return {
+    intent: Arr.reduce(intents, idleIntent, mergeIntents),
+    sprinting: Arr.map(intents, (intent) => intent.sprint),
+  };
+};

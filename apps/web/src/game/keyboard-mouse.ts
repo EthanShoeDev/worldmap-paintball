@@ -9,6 +9,7 @@ const slotKeys = [
   ['Digit1', 'Numpad1'],
   ['Digit2', 'Numpad2'],
   ['Digit3', 'Numpad3'],
+  ['Digit4', 'Numpad4'],
 ] as const;
 
 export const MouseButton = { primary: 0, secondary: 2 } as const;

@@ -1,4 +1,8 @@
-import { Api, OutsideCoverage } from '@worldmap-paintball/api-contract';
+import {
+  Api,
+  arenaHalfSizes,
+  OutsideCoverage,
+} from '@worldmap-paintball/api-contract';
 import {
   isCovered,
   outsideCoverageMessage,
@@ -50,7 +54,12 @@ export const ArenasLive = HttpApiBuilder.group(
             () => 'local',
           ),
         );
-        return yield* mapData.arena(query);
+        return yield* mapData.arena({
+          lat: query.lat,
+          lon: query.lon,
+          halfSize: arenaHalfSizes[query.size ?? 'medium'],
+          ...(query.bake !== undefined && { bake: query.bake }),
+        });
       }),
     );
   }),

@@ -1,7 +1,9 @@
 import { ClientOnly, createFileRoute } from '@tanstack/react-router';
 import { coverageNames } from '@worldmap-paintball/api-contract/coverage';
-import { lazy, Suspense } from 'react';
+import { MAX_PLAYERS } from '@worldmap-paintball/api-contract/lobby';
+import { lazy, type ReactNode, Suspense } from 'react';
 
+import { Logo } from '../components/logo.tsx';
 import { OsmAttribution } from '../components/osm-attribution.tsx';
 import { LocationSearch } from '../location/location-search.tsx';
 
@@ -31,43 +33,69 @@ const LocationMap = lazy(() =>
   })),
 );
 
+const Step = ({
+  number,
+  title,
+  children,
+}: {
+  readonly number: number;
+  readonly title: string;
+  readonly children: ReactNode;
+}) => (
+  <section className='flex flex-col gap-3'>
+    <h2 className='flex items-center gap-2 font-display text-sm tracking-wider text-ink uppercase'>
+      <span className='flex size-6 items-center justify-center rounded-full bg-lime-300 text-xs text-night'>
+        {number}
+      </span>
+      {title}
+    </h2>
+    {children}
+  </section>
+);
+
 const Home = () => (
-  <main className='flex h-screen flex-col md:flex-row'>
-    <section className='flex flex-col gap-5 overflow-y-auto p-6 md:w-96'>
-      <h1 className='text-2xl font-bold'>Worldmap Paintball</h1>
+  <main className='flex min-h-screen flex-col md:block md:h-screen md:overflow-hidden'>
+    <section className='h-[42vh] md:absolute md:inset-0 md:h-auto'>
       <ClientOnly>
         <Suspense>
-          <PlayerIdentity />
+          <LocationMap />
         </Suspense>
       </ClientOnly>
-      <div className='flex flex-col gap-3'>
-        <h2 className='font-semibold'>Host a match</h2>
-        <p className='text-sm text-slate-600'>
-          Pick anywhere in {coverageNames} for the arena.
+    </section>
+    {/* Keeps the panel's edge readable over a busy map. */}
+    <div className='pointer-events-none absolute inset-y-0 left-0 hidden w-[36rem] bg-linear-to-r from-night/70 to-transparent md:block' />
+    <section className='relative z-10 -mt-6 flex flex-col gap-6 rounded-t-3xl border-t border-line bg-panel p-6 md:absolute md:top-4 md:bottom-4 md:left-4 md:mt-0 md:w-[26rem] md:overflow-y-auto md:rounded-3xl md:border md:shadow-2xl md:shadow-black/50'>
+      <header className='flex flex-col gap-3 pt-2'>
+        <Logo />
+        <p className='text-muted'>
+          Your street is the arena. Pick a real place in {coverageNames}, and
+          its roads, houses and hills become a paintball map for up to{' '}
+          {MAX_PLAYERS} players.
         </p>
+      </header>
+      <ClientOnly>
+        <Suspense>
+          <Step number={1} title='Your callsign'>
+            <PlayerIdentity />
+          </Step>
+        </Suspense>
+      </ClientOnly>
+      <Step number={2} title='Pick your arena'>
         <LocationSearch />
         <ClientOnly>
           <Suspense>
             <HostActions />
           </Suspense>
         </ClientOnly>
-      </div>
-      <div className='flex flex-col gap-3'>
-        <h2 className='font-semibold'>Join a match</h2>
+      </Step>
+      <Step number={3} title='Or join friends'>
         <ClientOnly>
           <Suspense>
             <JoinLobbyForm />
           </Suspense>
         </ClientOnly>
-      </div>
-      <OsmAttribution className='mt-auto text-slate-500' />
-    </section>
-    <section className='min-h-80 flex-1'>
-      <ClientOnly>
-        <Suspense>
-          <LocationMap />
-        </Suspense>
-      </ClientOnly>
+      </Step>
+      <OsmAttribution className='mt-auto text-muted' />
     </section>
   </main>
 );

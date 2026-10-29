@@ -1,12 +1,12 @@
 import { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Effect, flow, Option, Schema } from 'effect';
 
-import { weaponIds } from '../tuning.ts';
+import { allWeaponIds, powerUpKinds } from '../tuning.ts';
 
 export const Vec3 = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite]);
 export type Vec3 = typeof Vec3.Type;
 
-export const WeaponId = Schema.Literals(weaponIds);
+export const WeaponId = Schema.Literals(allWeaponIds);
 export type WeaponId = typeof WeaponId.Type;
 
 // Client to host on the unreliable `state` channel, ~20 Hz. `position` is the
@@ -37,9 +37,11 @@ export const SnapshotPlayer = Schema.Struct({
 export type SnapshotPlayer = typeof SnapshotPlayer.Type;
 
 // Host to everyone as the `state` of a `PeerNetwork` snapshot, ~20 Hz.
+// `pads` says which power-up pads are ready, in `padsOf` order.
 export const WorldSnapshot = Schema.Struct({
   players: Schema.Array(SnapshotPlayer),
   scores: Schema.Array(Score),
+  pads: Schema.optionalKey(Schema.Array(Schema.Boolean)),
 });
 export type WorldSnapshot = typeof WorldSnapshot.Type;
 
@@ -47,7 +49,8 @@ export type WorldSnapshot = typeof WorldSnapshot.Type;
 // host relays `Shot` and sends the rest. A `Shot` is everything a peer needs
 // to replay its balls with its weapon's spec: `origin` is the muzzle, `dir`
 // the aim before spread, and `seed` draws every pellet's spread. `respawnInMs` is relative because
-// peers' clocks are not synchronised.
+// peers' clocks are not synchronised. A client asks for a pad with `Grab`;
+// the host answers everyone with `PoweredUp`.
 export const NetEvent = Schema.TaggedUnion({
   Shot: {
     shooter: PlayerId,
@@ -69,6 +72,12 @@ export const NetEvent = Schema.TaggedUnion({
   },
   Scored: { scores: Schema.Array(Score) },
   Respawn: { player: PlayerId, position: Vec3 },
+  Grab: { player: PlayerId, pad: Schema.Int },
+  PoweredUp: {
+    player: PlayerId,
+    pad: Schema.Int,
+    kind: Schema.Literals(powerUpKinds),
+  },
   MatchEnded: { scores: Schema.Array(Score) },
 });
 export type NetEvent = typeof NetEvent.Type;

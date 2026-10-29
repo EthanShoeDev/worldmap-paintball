@@ -1,13 +1,15 @@
 import { isCovered } from '@worldmap-paintball/api-contract/coverage';
 import {
   ClientMessage,
+  defaultMapSettings,
+  defaultMatchRules,
   type Lobby,
   MAX_PLAYERS,
   type PlayerId,
   type RejectReason,
   ServerMessage,
 } from '@worldmap-paintball/api-contract/lobby';
-import { Array, String } from 'effect';
+import { Array, String, Struct } from 'effect';
 
 export interface Envelope {
   readonly to: PlayerId;
@@ -50,6 +52,8 @@ const unready = (lobby: Lobby): Lobby => ({
   ...lobby,
   players: Array.map(lobby.players, (player) => ({ ...player, ready: false })),
 });
+
+const withoutBake = (lobby: Lobby): Lobby => Struct.omit(lobby, ['bake']);
 
 const leave = (lobby: Lobby, from: PlayerId): Step => {
   const players = Array.filter(lobby.players, (player) => player.id !== from);
@@ -135,9 +139,40 @@ const asMember = (lobby: Lobby, from: PlayerId, message: ClientMessage) =>
         whileWaiting(lobby, from, () =>
           isCovered(location.lat, location.lon)
             ? // Players agreed to a place; a new place needs a fresh agreement.
-              updated(unready({ ...lobby, location }))
+              // Drawn houses are in the old place's local metres.
+              updated(
+                unready({
+                  ...withoutBake(lobby),
+                  location,
+                  map: { ...lobby.map, buildings: [] },
+                }),
+              )
             : reject(lobby, from, 'OutsideCoverage'),
         ),
+      ),
+    // Unlike a new location, tweaks to the same place keep everyone ready:
+    // the host edits while players wait.
+    SetMapSettings: ({ map }) =>
+      hostOnly(lobby, from, () =>
+        whileWaiting(lobby, from, () =>
+          // Another size is another bake.
+          updated({
+            ...(map.size === lobby.map.size ? lobby : withoutBake(lobby)),
+            map,
+          }),
+        ),
+      ),
+    PinBake: ({ bake }) =>
+      hostOnly(lobby, from, () =>
+        whileWaiting(lobby, from, () => updated({ ...lobby, bake })),
+      ),
+    SetBots: ({ bots }) =>
+      hostOnly(lobby, from, () =>
+        whileWaiting(lobby, from, () => updated({ ...lobby, bots })),
+      ),
+    SetRules: ({ rules }) =>
+      hostOnly(lobby, from, () =>
+        whileWaiting(lobby, from, () => updated({ ...lobby, rules })),
       ),
     StartMatch: () =>
       hostOnly(lobby, from, () =>
@@ -188,6 +223,9 @@ const create = (from: PlayerId, message: ClientMessage) =>
           hostId: from,
           players: [{ id: from, name, ready: false }],
           location,
+          map: defaultMapSettings,
+          bots: 0,
+          rules: defaultMatchRules,
         };
         return { lobby: created, outbox: [welcome(created, from)] };
       },

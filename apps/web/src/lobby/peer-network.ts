@@ -19,6 +19,7 @@ import {
   SubscriptionRef,
 } from 'effect';
 
+import { matchRoster } from '../game/net/bots.ts';
 import { LobbyClient } from './lobby-client.ts';
 import { MatchNetwork, type MatchStart } from './match-network.ts';
 
@@ -127,7 +128,10 @@ export class PeerNetwork extends Context.Service<
       const peers = yield* SubscriptionRef.make<
         ReadonlyMap<PlayerId, RTCPeerConnectionState>
       >(new Map());
-      const players = yield* SubscriptionRef.make(lobby.players);
+      // Bots count as present for the whole match; only players leave.
+      const players = yield* SubscriptionRef.make<ReadonlyArray<Player>>(
+        matchRoster(lobby),
+      );
       const inbox = yield* PubSub.unbounded<PeerMessage>();
 
       const signal = (to: PlayerId, payload: SignalPayload) =>
@@ -315,7 +319,7 @@ export class PeerNetwork extends Context.Service<
             Array.map(current.players, (player) => player.id),
           );
           return Effect.andThen(
-            SubscriptionRef.set(players, current.players),
+            SubscriptionRef.set(players, matchRoster(current)),
             Effect.forEach(
               Array.filter([...links.keys()], (peer) => !members.has(peer)),
               close,
@@ -392,7 +396,7 @@ export class PeerNetwork extends Context.Service<
         you,
         hostId,
         isHost,
-        roster: lobby.players,
+        roster: matchRoster(lobby),
         players,
         peers,
         messages,

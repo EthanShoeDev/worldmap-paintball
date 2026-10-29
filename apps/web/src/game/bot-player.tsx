@@ -6,7 +6,10 @@ import {
   RigidBody,
   useRapier,
 } from '@react-three/rapier';
-import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
+import type {
+  MatchRules,
+  PlayerId,
+} from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr } from 'effect';
 import { type RefObject, useRef } from 'react';
 import type { Object3D } from 'three';
@@ -28,7 +31,13 @@ import { colorOf, type NetGame } from './net/net-game.ts';
 import type { Vec3 } from './net/protocol.ts';
 import type { Volley } from './paintballs.ts';
 import { aimShot, clearLine } from './shots.ts';
-import { bodyHalfHeight, bodyRadius, botTuning, weapons } from './tuning.ts';
+import { type Escape, hasEscaped } from './terrain.ts';
+import {
+  bodyHalfHeight,
+  bodyRadius,
+  botTuning,
+  type Weapons,
+} from './tuning.ts';
 
 // A bot the host simulates: a body and a brain, but no mesh, because the host
 // draws it through <RemotePlayers> from its own snapshots like anyone else.
@@ -39,6 +48,9 @@ export const BotPlayer = ({
   arena,
   seed,
   launch,
+  escape,
+  rules,
+  weapons,
 }: {
   readonly id: PlayerId;
   readonly net: NetGame['Service'];
@@ -46,6 +58,10 @@ export const BotPlayer = ({
   readonly arena: RefObject<Object3D | null>;
   readonly seed: number;
   readonly launch: (volley: Volley) => void;
+  readonly escape: Escape;
+  readonly rules: MatchRules;
+  // Under the match's paintball speed, so bots lead their shots right.
+  readonly weapons: Weapons;
 }) => {
   const body = useRef<RapierRigidBody>(null);
   const view = useRef({ yaw: 0, pitch: 0 });
@@ -69,6 +85,11 @@ export const BotPlayer = ({
       rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
       memory.current = rearmBot(memory.current);
       loadout.current = makeLoadout(memory.current.weapon);
+    }
+    if (hasEscaped(escape, rigidBody.translation())) {
+      const [x, y, z] = net.spawnOf(id);
+      rigidBody.setTranslation({ x, y, z }, true);
+      rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
     }
     const alive = controls.alive();
     const held = loadout.current;
@@ -130,6 +151,7 @@ export const BotPlayer = ({
       view: looking,
       intent: thought.intent,
       alive,
+      rules,
     });
     const { loadout: next, fired } = stepLoadout(
       held,

@@ -1,3 +1,5 @@
+import { Record } from 'effect';
+
 // Player capsule: the rapier collider and the hitbox remote shots test.
 export const bodyRadius = 0.35;
 export const bodyHalfHeight = 0.5;
@@ -8,9 +10,10 @@ export const spawnHeight = bodyHalfHeight + bodyRadius + 0.5;
 // Weapons, in m/s, radians and seconds. `spread` is the half-angle of the
 // cone each pellet leaves in; `gravityScale` multiplies paintball gravity.
 // One hit eliminates, so weapons differ only in how they shoot. Their order
-// is the slot order, keys 1 to 3.
+// is the slot order, keys 1 to 3; a power-up's weapon takes key 4.
 export const weaponIds = ['assault', 'sniper', 'shotgun'] as const;
-export type WeaponId = (typeof weaponIds)[number];
+export const allWeaponIds = [...weaponIds, 'launcher'] as const;
+export type WeaponId = (typeof allWeaponIds)[number];
 
 export interface WeaponSpec {
   readonly muzzleSpeed: number;
@@ -24,11 +27,19 @@ export interface WeaponSpec {
   readonly reloadTime: number;
   // The field of view while zoomed, in degrees, for a weapon with a scope.
   readonly zoomFov?: number;
+  // Only from a power-up: never reloads, and is put away once empty.
+  readonly pickup?: true;
+  // Eliminates everyone within this many metres of where a ball lands.
+  readonly blast?: number;
+  // Multiplies the drawn ball's size.
+  readonly ballScale?: number;
 }
 
 const degrees = (angle: number) => (angle * Math.PI) / 180;
 
-export const weapons: Record<WeaponId, WeaponSpec> = {
+export type Weapons = Record<WeaponId, WeaponSpec>;
+
+export const weapons: Weapons = {
   assault: {
     muzzleSpeed: 90,
     gravityScale: 1,
@@ -61,7 +72,31 @@ export const weapons: Record<WeaponId, WeaponSpec> = {
     magazine: 8,
     reloadTime: 2.5,
   },
+  // A slow, heavy paint grenade that bursts where it lands.
+  launcher: {
+    muzzleSpeed: 38,
+    gravityScale: 0.7,
+    spread: 0,
+    pellets: 1,
+    fireInterval: 1.2,
+    lifetime: 4,
+    magazine: 3,
+    reloadTime: 0,
+    pickup: true,
+    blast: 4,
+    ballScale: 3,
+  },
 };
+
+// The weapons under a match's paintball speed mutator. Lifetimes stay put,
+// so faster balls also fly further.
+export const weaponsAt = (paintballSpeed: number): Weapons =>
+  paintballSpeed === 1
+    ? weapons
+    : Record.map(weapons, (spec) => ({
+        ...spec,
+        muzzleSpeed: spec.muzzleSpeed * paintballSpeed,
+      }));
 
 export const defaultWeapon: WeaponId = 'assault';
 
@@ -93,6 +128,9 @@ export const paintballTuning = {
 // marker's view space projects where the same point would in the world.
 export const viewFov = 75;
 
+// Fog and the sky's haze share it, so far terrain melts into the horizon.
+export const hazeColor = '#c9dcec';
+
 // Device pixels per CSS pixel. A 4K laptop at native ratio draws ~8M pixels a
 // frame, which most laptop GPUs can't shade at 60 fps, so Auto caps below it
 // and lowers it further while the frame rate is short.
@@ -105,6 +143,7 @@ export const markerTuning = {
     assault: [0, 0.012, -0.445],
     sniper: [0, 0.012, -0.72],
     shotgun: [0, 0.012, -0.36],
+    launcher: [0, 0.03, -0.5],
   },
   // First person, in the view camera's frame: lower right, barrel ahead.
   view: { position: [0.2, -0.21, -0.42], rotation: [0.02, 0.05, 0] },
@@ -113,7 +152,7 @@ export const markerTuning = {
   held: { pivot: [0, 0.42, 0], position: [0.24, -0.14, -0.34], scale: 1.3 },
   recoil: { rise: 0.025, decay: 0.07, back: 0.05, lift: 0.012, tilt: 0.12 },
   // Multiplies the recoil kick per weapon.
-  kick: { assault: 1, sniper: 1.8, shotgun: 2.2 },
+  kick: { assault: 1, sniper: 1.8, shotgun: 2.2, launcher: 3 },
   // Bob phase advances `stride` radians per metre walked; `amount` eases
   // toward speed / fullSpeed at `response` per second.
   bob: { stride: 2.4, sway: 0.01, bounce: 0.008, fullSpeed: 7.5, response: 8 },
@@ -125,6 +164,24 @@ export const markerTuning = {
 } as const;
 
 export const respawnDelayMs = 3000;
+
+// Power-up pads, in metres, seconds and m/s². Pads hold one kind each and
+// come back `padRespawn` after they are taken. A jetpack burns `fuel`
+// seconds of thrust while jump is held in the air and refills on the ground.
+export const powerUpKinds = ['jetpack', 'launcher', 'xray', 'speed'] as const;
+export type PowerUpKind = (typeof powerUpKinds)[number];
+
+export const powerUpTuning = {
+  // One pad per `padSpacing` metres of half size, so 6, 8 and 12.
+  padSpacing: 20,
+  padRespawn: 25,
+  grabRadius: 1.6,
+  // The host's tolerance on top, for a state up to a round trip old.
+  grabTolerance: 2.5,
+  duration: { jetpack: 15, launcher: 30, xray: 12, speed: 10 },
+  jetpack: { thrust: 19, maxRise: 7, fuel: 2.5, refill: 1 },
+  speed: 1.6,
+} as const;
 export const netTickMs = 50;
 export const interpolationBufferMs = 100;
 
@@ -145,7 +202,12 @@ export const botTuning = {
   burstPause: 0.6,
   strafeFlip: [0.6, 1.6],
   // Closes in on a target further than this, backs off from one nearer.
-  engageDistance: { assault: [8, 25], sniper: [20, 45], shotgun: [3, 10] },
+  engageDistance: {
+    assault: [8, 25],
+    sniper: [20, 45],
+    shotgun: [3, 10],
+    launcher: [10, 30],
+  },
   // Scales aim jitter for a scoped weapon: bots zoom without a camera.
   zoomJitter: 0.35,
   // Aims at the chest: the eye sits above most of the hitbox.

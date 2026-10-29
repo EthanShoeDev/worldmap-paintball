@@ -6,7 +6,7 @@ import { type Group, type Object3D, PerspectiveCamera, Scene } from 'three';
 
 import { MarkerModel } from './marker-model.tsx';
 import { type ViewmodelState, viewmodelPose } from './marker-motion.ts';
-import { viewFov, type WeaponId, weaponIds } from './tuning.ts';
+import { allWeaponIds, viewFov, type WeaponId } from './tuning.ts';
 
 // The first-person marker lives in its own scene, drawn after the world over
 // a cleared depth buffer: walls can never cover it, and it never shades or
@@ -59,7 +59,7 @@ export const Viewmodel = ({
       <hemisphereLight args={['#dfefff', '#8a7f6a', 1.1]} />
       <directionalLight position={[0.5, 1, 0.4]} intensity={1.6} />
       <group ref={marker}>
-        {Arr.map(weaponIds, (weapon) => (
+        {Arr.map(allWeaponIds, (weapon) => (
           <group
             key={weapon}
             ref={(model) => {

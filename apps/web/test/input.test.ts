@@ -74,7 +74,6 @@ describe('gamepadIntent', () => {
       1 / 60,
     );
     assert.isTrue(intent.jump);
-    assert.isTrue(intent.sprint);
     assert.isTrue(intent.fire);
     assert.isTrue(intent.reload);
     assert.isTrue(intent.zoom);
@@ -100,20 +99,62 @@ describe('gamepadIntent', () => {
     assert.isFalse(gamepadIntent(pad([0, 0, 0, 0], [Button.lb]), 1).sprint);
   });
 
+  it('toggles sprint with a click of L3 until the run is interrupted', () => {
+    const forward = [0, -1, 0, 0];
+    const step = (
+      axes: number[],
+      buttons: number[],
+      sprinting: boolean,
+      held: number[] = [],
+    ) =>
+      gamepadIntent(
+        pad(axes, buttons),
+        1 / 60,
+        undefined,
+        pressedButtons(pad(axes, held)),
+        sprinting,
+      ).sprint;
+    assert.isTrue(step(forward, [Button.l3], false));
+    assert.isTrue(step(forward, [], true), 'stays on once released');
+    assert.isTrue(step(forward, [Button.l3], true, [Button.l3]), 'held');
+    assert.isFalse(step(forward, [Button.l3], true), 'clicked again');
+    assert.isFalse(step([0, 0, 0, 0], [], true), 'stick at rest');
+    assert.isFalse(step([0, 0, 0, 0], [Button.l3], false), 'standing still');
+    assert.isFalse(step([0, 1, 0, 0], [], true), 'pulled back');
+    assert.isFalse(step([1, 0, 0, 0], [], true), 'strafing');
+    assert.isTrue(step([0.5, -0.5, 0, 0], [], true), 'forward diagonal');
+    assert.isFalse(step(forward, [Button.rt], true), 'firing');
+    assert.isFalse(step(forward, [Button.lt], true), 'aiming');
+    assert.isFalse(
+      step(forward, [Button.l3, Button.rt], false),
+      'click and fire',
+    );
+  });
+
   it('remembers each pad held separately', () => {
     const rb = pad([0, 0, 0, 0], [Button.rb]);
     const idle = pad([0, 0, 0, 0]);
     assert.deepStrictEqual(
-      pollGamepads([idle, rb], 1 / 60, [pressedButtons(rb), []]).selectWeapon,
+      pollGamepads([idle, rb], 1 / 60, [pressedButtons(rb), []]).intent
+        .selectWeapon,
       { cycle: 1 },
     );
     assert.isUndefined(
-      pollGamepads([idle, rb], 1 / 60, [[], pressedButtons(rb)]).selectWeapon,
+      pollGamepads([idle, rb], 1 / 60, [[], pressedButtons(rb)]).intent
+        .selectWeapon,
+    );
+  });
+
+  it('keeps each pad sprinting separately', () => {
+    const forward = pad([0, -1, 0, 0]);
+    assert.deepStrictEqual(
+      pollGamepads([forward, forward], 1 / 60, [], [true, false]).sprinting,
+      [true, false],
     );
   });
 
   it('is idle without pads', () => {
-    assert.deepStrictEqual(pollGamepads([], 1 / 60), idleIntent);
+    assert.deepStrictEqual(pollGamepads([], 1 / 60).intent, idleIntent);
   });
 });
 
@@ -144,7 +185,7 @@ describe('keyboardMouseIntent', () => {
     assert.isFalse(intent.fire);
   });
 
-  it('selects a slot with 1 to 3 and steps with the wheel', () => {
+  it('selects a slot with 1 to 4 and steps with the wheel', () => {
     const select = (keys: string[], wheel = 0) =>
       keyboardMouseIntent(new Set(keys), mouse([], wheel)).selectWeapon;
     assert.deepStrictEqual(select(['Digit1']), { slot: 0 });
@@ -153,7 +194,8 @@ describe('keyboardMouseIntent', () => {
     assert.deepStrictEqual(select([], 1), { cycle: 1 });
     assert.deepStrictEqual(select([], -2), { cycle: -1 });
     assert.deepStrictEqual(select(['Digit3'], 1), { slot: 2 });
-    assert.isUndefined(select(['Digit4']));
+    assert.deepStrictEqual(select(['Digit4']), { slot: 3 });
+    assert.isUndefined(select(['Digit5']));
   });
 });
 

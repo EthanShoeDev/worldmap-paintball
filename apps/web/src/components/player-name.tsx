@@ -10,7 +10,7 @@ export const PlayerNameInput = () => {
     <label className='flex flex-col gap-1 text-sm font-medium'>
       Your name
       <input
-        className='rounded border border-slate-300 px-3 py-2 font-normal'
+        className='field px-3 py-2 font-normal'
         placeholder='Splatter'
         maxLength={maxNameLength}
         // The name is already remembered in localStorage.

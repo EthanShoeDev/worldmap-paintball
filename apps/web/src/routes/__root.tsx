@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import appCss from '../styles.css?url';
 
 const RootDocument = ({ children }: { readonly children: ReactNode }) => (
-  <html lang='en'>
+  <html lang='en' className='bg-night'>
     <head>
       <HeadContent />
     </head>
@@ -22,7 +22,19 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Worldmap Paintball' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossOrigin: 'anonymous',
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;600;700&display=swap',
+      },
+      { rel: 'stylesheet', href: appCss },
+    ],
   }),
   shellComponent: RootDocument,
 });

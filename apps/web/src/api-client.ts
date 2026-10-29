@@ -1,5 +1,5 @@
 import { createIsomorphicFn } from '@tanstack/react-start';
-import { Api } from '@worldmap-paintball/api-contract';
+import { Api, type ArenaSize } from '@worldmap-paintball/api-contract';
 import { outsideCoverageMessage } from '@worldmap-paintball/api-contract/coverage';
 import { Context, Effect, Layer, ManagedRuntime, Predicate } from 'effect';
 import { FetchHttpClient } from 'effect/http';
@@ -68,11 +68,18 @@ export const callApi = <A, E>(
     options,
   );
 
-const fetchArena = Effect.fn('fetchArena')(function* (query: Coordinates) {
+// An arena to fetch: its centre and size.
+export interface ArenaQuery extends Coordinates {
+  readonly size: ArenaSize;
+  // One bake to fetch again (a lobby's pin); absent asks for the latest.
+  readonly bake?: string;
+}
+
+const fetchArena = Effect.fn('fetchArena')(function* (query: ArenaQuery) {
   const client = yield* ApiClient;
   return yield* client.arenas.get({ query });
 });
 
-export const arenaAtom = Atom.family((coordinates: Coordinates) =>
-  apiRuntime.atom(fetchArena(coordinates)),
+export const arenaAtom = Atom.family((query: ArenaQuery) =>
+  apiRuntime.atom(fetchArena(query)),
 );

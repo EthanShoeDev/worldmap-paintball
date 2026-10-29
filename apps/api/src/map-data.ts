@@ -1,5 +1,9 @@
 import type * as Cloudflare from '@alchemy.run/cloudflare';
-import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
+import {
+  type Arena,
+  type ArenaLayer,
+  MapDataError,
+} from '@worldmap-paintball/api-contract';
 import {
   Cache,
   Clock,
@@ -11,6 +15,7 @@ import {
   Option,
   Schedule,
   Schema,
+  String as Str,
 } from 'effect';
 import {
   FetchHttpClient,
@@ -48,6 +53,15 @@ import { USER_AGENT } from './user-agent.ts';
 
 export const HALF_SIZE = 150;
 
+// An arena centre and, when not the default, its half size in metres; and
+// optionally one bake of it to serve again (see `layerCached`).
+export interface ArenaRequest extends LatLon {
+  readonly halfSize?: number;
+  readonly bake?: string;
+}
+
+const halfSizeOf = (request: ArenaRequest) => request.halfSize ?? HALF_SIZE;
+
 // Durable bakes are served for 30 days. A game arena does not need the
 // latest OSM edits, but a month bounds how long a bad or outdated bake lives
 // and keeps the load on the free map services at one bake per arena per month.
@@ -64,16 +78,42 @@ const SOURCE_TIMEOUT = Duration.seconds(15);
 const TERRAIN_TIMEOUT = Duration.seconds(10);
 const FOOTPRINTS_TIMEOUT = Duration.seconds(10);
 
+// A bake missing an optional layer (`missing`) is served without it but never
+// stored, and the next request after a minute tries again: Terrarium covers
+// the whole world and a region without footprints is an empty success, so a
+// missing layer is always a transient failure, not the place.
+const DEGRADED_TTL = Duration.minutes(1);
+
+// Stored bakes from before `missing` existed lack terrain without saying so.
+const isComplete = (arena: Arena) =>
+  arena.terrain !== undefined && (arena.missing ?? []).length === 0;
+
+const withMissing = <A extends Arena>(arena: A, layer: ArenaLayer): A => ({
+  ...arena,
+  missing: [...(arena.missing ?? []), layer],
+});
+
 const isMapDataError = Schema.is(MapDataError);
 
 const round6 = (value: number) => Math.round(value * 1e6) / 1e6;
 
 // Six decimals (~11 cm) is what lobby clients send, so every member's request
-// lands on one key and every member gets the same bake.
-export const normalizeCenter = (center: LatLon): LatLon => ({
-  lat: round6(center.lat),
-  lon: round6(center.lon),
-});
+// lands on one key and every member gets the same bake. The default half size
+// is left out, so either spelling of it shares one key.
+export const normalizeCenter = (center: ArenaRequest): ArenaRequest => {
+  const halfSize = halfSizeOf(center);
+  return {
+    lat: round6(center.lat),
+    lon: round6(center.lon),
+    ...(halfSize !== HALF_SIZE && { halfSize }),
+    ...(center.bake !== undefined && { bake: center.bake }),
+  };
+};
+
+// Where a partial bake is kept, so a lobby that pinned it can get it again.
+// Complete bakes live at the arena's own key.
+export const pinnedKey = (key: string, bake: string) =>
+  Str.replace(/\.json$/, `@${bake}.json`)(key);
 
 // Durable cache key for a normalised centre. The bake version and half size
 // are part of it, so changing either makes old entries unreachable (they then
@@ -90,7 +130,9 @@ export const arenaKey = (
 export class MapData extends Context.Service<
   MapData,
   {
-    readonly arena: (center: LatLon) => Effect.Effect<Arena, MapDataError>;
+    readonly arena: (
+      request: ArenaRequest,
+    ) => Effect.Effect<Arena, MapDataError>;
   }
 >()('@worldmap-paintball/api/map-data/MapData') {
   static readonly layerOverpass = Layer.effect(
@@ -105,18 +147,18 @@ export class MapData extends Context.Service<
       );
 
       const arena = Effect.fn('MapData.arena')(
-        function* (center: LatLon) {
+        function* (center: ArenaRequest) {
           yield* Effect.annotateCurrentSpan({ ...center });
           yield* Effect.log('Querying Overpass', center);
           const response = yield* HttpClientRequest.post(OVERPASS_URL).pipe(
             HttpClientRequest.setHeader('User-Agent', USER_AGENT),
             HttpClientRequest.bodyUrlParams({
-              data: overpassQuery(center, HALF_SIZE),
+              data: overpassQuery(center, halfSizeOf(center)),
             }),
             client.execute,
             Effect.flatMap(HttpClientResponse.schemaBodyJson(OverpassResponse)),
           );
-          return bakeArena(center, HALF_SIZE, overpassWays(response));
+          return bakeArena(center, halfSizeOf(center), overpassWays(response));
         },
         Effect.mapError((cause) =>
           MapDataError.make({ message: `Overpass: ${cause.message}` }),
@@ -141,7 +183,7 @@ export class MapData extends Context.Service<
       );
 
       const arena = Effect.fn('MapData.arena')(
-        function* (center: LatLon) {
+        function* (center: ArenaRequest) {
           yield* Effect.annotateCurrentSpan({ ...center });
           yield* Effect.log('Fetching OpenFreeMap tiles', center);
           const {
@@ -153,7 +195,7 @@ export class MapData extends Context.Service<
             Effect.flatMap(HttpClientResponse.schemaBodyJson(TileJson)),
           );
           const features = yield* Effect.forEach(
-            tilesCovering(bounds(center, HALF_SIZE), OPENFREEMAP_ZOOM),
+            tilesCovering(bounds(center, halfSizeOf(center)), OPENFREEMAP_ZOOM),
             (tile) =>
               fetchTile(
                 client,
@@ -162,7 +204,7 @@ export class MapData extends Context.Service<
               ),
             { concurrency: 'unbounded' },
           );
-          return bakeFeatures(center, HALF_SIZE, features.flat());
+          return bakeFeatures(center, halfSizeOf(center), features.flat());
         },
         Effect.timeout(SOURCE_TIMEOUT),
         Effect.mapError((cause) =>
@@ -212,12 +254,12 @@ export class MapData extends Context.Service<
       const elevation = yield* Elevation;
 
       const arena = Effect.fn('MapData.arenaWithTerrain')(function* (
-        center: LatLon,
+        center: ArenaRequest,
       ) {
         const [geometry, terrain] = yield* Effect.all(
           [
             upstream.arena(center),
-            elevation.terrain(center, HALF_SIZE).pipe(
+            elevation.terrain(center, halfSizeOf(center)).pipe(
               Effect.timeout(TERRAIN_TIMEOUT),
               Effect.tapError((error) =>
                 Effect.logWarning('Baking without terrain', error.message),
@@ -228,7 +270,7 @@ export class MapData extends Context.Service<
           { concurrency: 'unbounded' },
         );
         return Option.match(terrain, {
-          onNone: () => geometry,
+          onNone: () => withMissing(geometry, 'terrain'),
           onSome: (heights) => ({ ...geometry, terrain: heights }),
         });
       });
@@ -247,12 +289,12 @@ export class MapData extends Context.Service<
       const source = yield* BuildingFootprints;
 
       const arena = Effect.fn('MapData.arenaWithFootprints')(function* (
-        center: LatLon,
+        center: ArenaRequest,
       ) {
         const [geometry, footprints] = yield* Effect.all(
           [
             upstream.arena(center),
-            source.footprints(bounds(center, HALF_SIZE)).pipe(
+            source.footprints(bounds(center, halfSizeOf(center))).pipe(
               Effect.timeout(FOOTPRINTS_TIMEOUT),
               Effect.tapError((error) =>
                 Effect.logWarning(
@@ -260,12 +302,15 @@ export class MapData extends Context.Service<
                   error.message,
                 ),
               ),
-              Effect.orElseSucceed(() => []),
+              Effect.option,
             ),
           ],
           { concurrency: 'unbounded' },
         );
-        return addFootprints(geometry, footprints);
+        return Option.match(footprints, {
+          onNone: () => withMissing(geometry, 'footprints'),
+          onSome: (found) => addFootprints(geometry, found),
+        });
       });
 
       return MapData.of({ arena });
@@ -275,6 +320,9 @@ export class MapData extends Context.Service<
   // Decorates an upstream MapData: concurrent requests for one centre share
   // a single bake, and successful bakes are kept in memory and in the
   // ArenaStore. Failures are never cached, so the next request retries.
+  // Every bake gets an id (`bake`). A bake missing a layer is the latest one
+  // for a minute only, so asking again then bakes afresh, but it is stored
+  // under its id, so a lobby that pinned it keeps getting it.
   static readonly layerCached = Layer.effect(
     MapData,
     Effect.gen(function* () {
@@ -283,16 +331,32 @@ export class MapData extends Context.Service<
       const maxAge = Duration.toMillis(ARENA_MAX_AGE);
 
       const bake = Effect.fn('MapData.bake')(
-        function* (center: LatLon) {
-          const key = arenaKey(center);
+        function* ({ bake: pin, ...center }: ArenaRequest) {
+          const key = arenaKey(center, halfSizeOf(center));
           const stored = yield* store.get(key);
+          if (pin !== undefined) {
+            if (Option.isSome(stored) && stored.value.arena.bake === pin) {
+              return stored.value.arena;
+            }
+            const pinned = yield* store.get(pinnedKey(key, pin));
+            if (Option.isSome(pinned)) return pinned.value.arena;
+            // Gone (expired, or from an older bake version): the latest.
+          }
           const now = yield* Clock.currentTimeMillis;
-          if (Option.isSome(stored) && now - stored.value.bakedAt < maxAge) {
+          if (
+            Option.isSome(stored) &&
+            now - stored.value.bakedAt < maxAge &&
+            isComplete(stored.value.arena)
+          ) {
             return stored.value.arena;
           }
-          const arena = yield* upstream.arena(center);
+          const baked = yield* upstream.arena(center);
           const bakedAt = yield* Clock.currentTimeMillis;
-          yield* store.put(key, { bakedAt, arena });
+          const arena = { ...baked, bake: bakedAt.toString(36) };
+          yield* store.put(
+            isComplete(arena) ? key : pinnedKey(key, arena.bake),
+            { bakedAt, arena },
+          );
           return arena;
         },
         Effect.catchTag('ArenaStoreError', (error) =>
@@ -304,8 +368,10 @@ export class MapData extends Context.Service<
 
       const cache = yield* Cache.makeWith(bake, {
         capacity: MEMORY_CAPACITY,
-        timeToLive: (exit) =>
-          Exit.isSuccess(exit) ? MEMORY_TTL : Duration.zero,
+        timeToLive: (exit) => {
+          if (Exit.isFailure(exit)) return Duration.zero;
+          return isComplete(exit.value) ? MEMORY_TTL : DEGRADED_TTL;
+        },
       });
 
       return MapData.of({
@@ -325,7 +391,7 @@ export class MapData extends Context.Service<
         arena: (center) => {
           const normalized = normalizeCenter(center);
           return bakers
-            .getByName(arenaKey(normalized))
+            .getByName(arenaKey(normalized, halfSizeOf(normalized)))
             .arena(normalized)
             .pipe(
               // The stub's type omits transport failures (RpcCallError).

@@ -1,6 +1,17 @@
 @import 'tailwindcss';
 
 @theme {
+  --font-sans: 'Rubik', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bungee', 'Rubik', ui-sans-serif, system-ui, sans-serif;
+
+  /* The menus' night palette; paint colours stay Tailwind's rose and lime. */
+  --color-night: #0b1020;
+  --color-panel: rgb(13 18 36 / 0.93);
+  --color-field: #151c33;
+  --color-line: rgb(255 255 255 / 0.12);
+  --color-ink: #eef2ff;
+  --color-muted: #9aa6c2;
+
   --animate-hit-marker: fade-out 0.3s ease-out forwards;
   --animate-confirm: confirm 1.8s ease-in forwards;
 
@@ -21,5 +32,76 @@
     100% {
       opacity: 0;
     }
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-night);
+    color: var(--color-ink);
+  }
+}
+
+/* The main call to action: a chunky, pressable paint-coloured button. */
+@utility button-paint {
+  border-radius: 0.75rem;
+  background-image: linear-gradient(135deg, #fb7185, #e11d48 55%, #be123c);
+  box-shadow:
+    0 4px 0 #881337,
+    0 10px 24px rgb(225 29 72 / 0.35);
+  color: white;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  transition:
+    transform 80ms,
+    box-shadow 80ms,
+    filter 120ms;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow:
+      0 1px 0 #881337,
+      0 4px 12px rgb(225 29 72 / 0.3);
+  }
+
+  &:disabled {
+    filter: grayscale(0.7);
+    opacity: 0.55;
+  }
+}
+
+/* Quieter buttons and fields on the night panels. */
+@utility button-ghost {
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line);
+  background-color: rgb(255 255 255 / 0.06);
+  color: var(--color-ink);
+
+  &:hover:not(:disabled) {
+    background-color: rgb(255 255 255 / 0.14);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+@utility field {
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-field);
+  color: var(--color-ink);
+
+  &::placeholder {
+    color: rgb(154 166 194 / 0.6);
+  }
+
+  &:focus {
+    outline: 2px solid #fb7185;
+    outline-offset: 1px;
   }
 }

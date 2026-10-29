@@ -1,6 +1,10 @@
 import { assert, describe, it } from '@effect/vitest';
 import { MachineTest } from '@typeonce/effect-machine/testing';
-import type { Lobby } from '@worldmap-paintball/api-contract/lobby';
+import {
+  type Lobby,
+  defaultMapSettings,
+  defaultMatchRules,
+} from '@worldmap-paintball/api-contract/lobby';
 import { Effect } from 'effect';
 
 import { lobbyMatchCode, matchStatus } from '../src/game/net/session.ts';
@@ -15,6 +19,9 @@ const lobby = (phase: Lobby['phase']): Lobby => ({
   hostId: 'host',
   players: [{ id: 'host', name: 'Host', ready: false }],
   location: { lat: 51.5, lon: -0.12 },
+  map: defaultMapSettings,
+  bots: 0,
+  rules: defaultMatchRules,
 });
 
 const after = (...events: ReadonlyArray<LobbyEvent>) =>

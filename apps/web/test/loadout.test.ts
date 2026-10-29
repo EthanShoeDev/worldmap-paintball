@@ -2,7 +2,9 @@ import { assert, describe, it } from '@effect/vitest';
 
 import type { WeaponSelection } from '../src/game/intent.ts';
 import {
+  armLauncher,
   combatViewOf,
+  disarmLauncher,
   type Loadout,
   lookScale,
   makeLoadout,
@@ -149,12 +151,30 @@ describe('magazines and reloading', () => {
 
 describe('switching weapons', () => {
   it('selects slots and cycles round them', () => {
-    assert.strictEqual(selectedWeapon('assault', { slot: 1 }), 'sniper');
-    assert.strictEqual(selectedWeapon('assault', { slot: 7 }), 'assault');
-    assert.strictEqual(selectedWeapon('assault', { cycle: 1 }), 'sniper');
-    assert.strictEqual(selectedWeapon('assault', { cycle: -1 }), 'shotgun');
-    assert.strictEqual(selectedWeapon('shotgun', { cycle: 1 }), 'assault');
-    assert.strictEqual(selectedWeapon('sniper', undefined), 'sniper');
+    assert.strictEqual(
+      selectedWeapon('assault', { slot: 1 }, makeLoadout().ammo),
+      'sniper',
+    );
+    assert.strictEqual(
+      selectedWeapon('assault', { slot: 7 }, makeLoadout().ammo),
+      'assault',
+    );
+    assert.strictEqual(
+      selectedWeapon('assault', { cycle: 1 }, makeLoadout().ammo),
+      'sniper',
+    );
+    assert.strictEqual(
+      selectedWeapon('assault', { cycle: -1 }, makeLoadout().ammo),
+      'shotgun',
+    );
+    assert.strictEqual(
+      selectedWeapon('shotgun', { cycle: 1 }, makeLoadout().ammo),
+      'assault',
+    );
+    assert.strictEqual(
+      selectedWeapon('sniper', undefined, makeLoadout().ammo),
+      'sniper',
+    );
   });
 
   it('waits out the swap delay before the new weapon fires', () => {
@@ -242,6 +262,58 @@ describe('zoom', () => {
   });
 });
 
+describe('the launcher', () => {
+  it('starts empty, so key 4 does nothing', () => {
+    const loadout = makeLoadout();
+    assert.strictEqual(loadout.ammo.launcher, 0);
+    assert.strictEqual(
+      selectedWeapon('assault', { slot: 3 }, loadout.ammo),
+      'assault',
+    );
+  });
+
+  it('is raised by its power-up, fires its rounds, then is put away', () => {
+    const armed = armLauncher(makeLoadout('sniper'));
+    assert.strictEqual(armed.weapon, 'launcher');
+    const firing = hold(armed, { fire: true }, seconds(3.5));
+    assert.lengthOf(firing.shots, weapons.launcher.magazine);
+    const { loadout } = hold(firing.loadout, {}, seconds(1));
+    assert.strictEqual(loadout.weapon, 'sniper');
+    assert.strictEqual(loadout.ammo.launcher, 0);
+    assert.strictEqual(loadout.reload, 0);
+  });
+
+  it('can be swapped away and back while loaded', () => {
+    const armed = armLauncher(makeLoadout());
+    assert.strictEqual(
+      selectedWeapon('assault', { slot: 3 }, armed.ammo),
+      'launcher',
+    );
+    assert.strictEqual(
+      selectedWeapon('shotgun', { cycle: 1 }, armed.ammo),
+      'launcher',
+    );
+  });
+
+  it('refills in hand on a second power-up', () => {
+    const armed = armLauncher(makeLoadout());
+    const again = armLauncher({
+      ...armed,
+      ammo: { ...armed.ammo, launcher: 1 },
+    });
+    assert.strictEqual(again.ammo.launcher, weapons.launcher.magazine);
+    assert.strictEqual(again.previous, 'assault');
+  });
+
+  it('is lost when the power-up ends or its holder respawns', () => {
+    const armed = armLauncher(makeLoadout('shotgun'));
+    const disarmed = disarmLauncher(armed);
+    assert.strictEqual(disarmed.weapon, 'shotgun');
+    assert.strictEqual(disarmed.ammo.launcher, 0);
+    assert.deepStrictEqual(respawnLoadout(armed), makeLoadout('shotgun'));
+  });
+});
+
 describe('combat view', () => {
   it('reports the weapon in hand and its reload in 2% steps', () => {
     const loadout = {
@@ -254,6 +326,7 @@ describe('combat view', () => {
       ammo: weapons.shotgun.magazine,
       reload: 0.66,
       zoomed: false,
+      launcher: 0,
     });
     const nudged = combatViewOf(
       { ...loadout, reload: loadout.reload - 0.001 },

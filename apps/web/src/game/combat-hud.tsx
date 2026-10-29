@@ -2,15 +2,17 @@ import '@tanstack/react-start/client-only';
 import { useAtomValue } from '@effect/atom-react';
 import { Array as Arr, Option } from 'effect';
 
-import { combatViewAtom, hitMarkerAtom } from './hud-atoms.ts';
+import { combatViewAtom, hitMarkerAtom, powerUpViewAtom } from './hud-atoms.ts';
 import { screenShare } from './loadout.ts';
 import { matchViewAtom } from './net/net-game.ts';
-import { type WeaponId, weaponIds, weapons } from './tuning.ts';
+import { powerUpLooks } from './powerups.ts';
+import { allWeaponIds, type WeaponId, weaponIds, weapons } from './tuning.ts';
 
 const names: Record<WeaponId, string> = {
   assault: 'Assault',
   sniper: 'Sniper',
   shotgun: 'Shotgun',
+  launcher: 'Launcher',
 };
 
 const centre = 'absolute top-1/2 left-1/2 -translate-1/2';
@@ -63,6 +65,15 @@ const Crosshair = ({
     case 'sniper': {
       return <Dot size='size-1' />;
     }
+    case 'launcher': {
+      return (
+        <div
+          className={`${centre} size-10 rounded-full border-2 border-dashed border-amber-300/90 shadow`}
+        >
+          <Dot size='size-1' />
+        </div>
+      );
+    }
     case 'shotgun': {
       return (
         <>
@@ -90,10 +101,50 @@ const HitMarker = () => (
   </svg>
 );
 
+// The running power-up above the weapon panel; x-ray also tints the edges
+// of the screen.
+const PowerUpHud = () => {
+  const power = useAtomValue(powerUpViewAtom);
+  if (!power) return null;
+  const { label, hint, color } = powerUpLooks[power.kind];
+  return (
+    <>
+      {power.kind === 'xray' && (
+        <div
+          className='absolute inset-0'
+          style={{ boxShadow: `inset 0 0 120px ${color}66` }}
+        />
+      )}
+      <div
+        className='absolute right-2 bottom-36 w-64 rounded bg-black/50 px-3 py-2'
+        style={{ borderLeft: `4px solid ${color}` }}
+      >
+        <p className='flex items-baseline justify-between'>
+          <span className='font-semibold' style={{ color }}>
+            {label}
+          </span>
+          <span className='font-bold tabular-nums'>{power.seconds}s</span>
+        </p>
+        <p className='text-xs text-white/70'>{hint}</p>
+        {power.kind === 'jetpack' && (
+          <div className='mt-1 h-1.5 overflow-hidden rounded bg-white/20'>
+            <div
+              className='h-full'
+              style={{ width: `${power.fuel * 100}%`, backgroundColor: color }}
+            />
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
 // Weapon, slots, ammo and reload, bottom right above the attribution; the
 // crosshair for the weapon in hand; and flashes for hits and eliminations.
 export const CombatHud = () => {
-  const { weapon, ammo, reload, zoomed } = useAtomValue(combatViewAtom);
+  const { weapon, ammo, reload, zoomed, launcher } =
+    useAtomValue(combatViewAtom);
+  const slots = launcher > 0 ? allWeaponIds : weaponIds;
   const hits = useAtomValue(hitMarkerAtom);
   const view = useAtomValue(matchViewAtom);
   const { magazine } = weapons[weapon];
@@ -108,6 +159,7 @@ export const CombatHud = () => {
   return (
     <>
       <Crosshair weapon={weapon} zoomed={zoomed} />
+      <PowerUpHud />
       {hits > 0 && <HitMarker key={hits} />}
       {confirmed && (
         <p
@@ -117,9 +169,9 @@ export const CombatHud = () => {
           Splatted {target?.name ?? 'someone'}
         </p>
       )}
-      <div className='absolute right-2 bottom-8 w-56 rounded bg-black/50 px-3 py-2'>
+      <div className='absolute right-2 bottom-8 w-64 rounded bg-black/50 px-3 py-2'>
         <ol className='flex gap-1 text-xs'>
-          {Arr.map(weaponIds, (id, index) => (
+          {Arr.map(slots, (id, index) => (
             <li
               key={id}
               className={`flex-1 rounded px-1.5 py-0.5 text-center ${

@@ -1,10 +1,12 @@
 import { assert, describe, it } from '@effect/vitest';
 import { Machine } from '@typeonce/effect-machine';
 import { MachineTest } from '@typeonce/effect-machine/testing';
-import type {
-  ClientMessage,
-  Lobby,
-  ServerMessage,
+import {
+  type ClientMessage,
+  defaultMapSettings,
+  defaultMatchRules,
+  type Lobby,
+  type ServerMessage,
 } from '@worldmap-paintball/api-contract/lobby';
 import {
   Array as Arr,
@@ -42,7 +44,15 @@ const guest = { id: 'guest', name: 'Guest', ready: true };
 const lobby = (
   phase: Lobby['phase'],
   players: Lobby['players'] = [host, guest],
-): Lobby => ({ phase, hostId: host.id, players, location });
+): Lobby => ({
+  phase,
+  hostId: host.id,
+  players,
+  location,
+  map: defaultMapSettings,
+  bots: 0,
+  rules: defaultMatchRules,
+});
 
 const create = LobbyEvents.Create({ code, name: 'Host', location });
 const join = (name = 'Guest') => LobbyEvents.Join({ code, name });

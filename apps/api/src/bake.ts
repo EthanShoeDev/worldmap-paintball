@@ -156,7 +156,7 @@ const osmFeature = (way: OsmWay): ReadonlyArray<MapFeature> => {
 // Part of every durable arena cache key (`arenaKey` in map-data.ts). Bump it
 // whenever baking output for the same map data changes, so bakes made by
 // older code stop matching instead of being served.
-export const BAKE_VERSION = 3;
+export const BAKE_VERSION = 4;
 
 export const bakeFeatures = (
   center: LatLon,

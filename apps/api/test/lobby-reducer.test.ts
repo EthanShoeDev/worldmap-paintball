@@ -170,6 +170,104 @@ describe('lobby reducer', () => {
     assert.isFalse(moved.lobby?.players[1]?.ready);
   });
 
+  it('lets only the host change map settings, keeping readiness', () => {
+    const ready = reduce(
+      hostWithGuests(1).lobby,
+      'p0',
+      Client.SetReady.make({ ready: true }),
+    );
+    const house = {
+      footprint: [
+        [0, 0],
+        [8, 0],
+        [8, 10],
+      ] as const,
+      height: 6,
+    };
+    const map = {
+      size: 'large' as const,
+      shape: 'circle' as const,
+      elevationScale: 2,
+      buildings: [house],
+    };
+    const byGuest = reduce(
+      ready.lobby,
+      'p0',
+      Client.SetMapSettings.make({ map }),
+    );
+    assert.strictEqual(rejection(byGuest, 'p0'), 'NotHost');
+    const changed = reduce(
+      ready.lobby,
+      'host',
+      Client.SetMapSettings.make({ map }),
+    );
+    assert.deepStrictEqual(changed.lobby?.map, map);
+    assert.isTrue(changed.lobby?.players[1]?.ready);
+    assert.deepStrictEqual(tags(sentTo(changed, 'p0')), ['LobbyUpdated']);
+    const moved = reduce(
+      changed.lobby,
+      'host',
+      Client.SetLocation.make({ location: { lat: 35.2271, lon: -80.8431 } }),
+    );
+    assert.deepStrictEqual(moved.lobby?.map, {
+      size: 'large',
+      shape: 'circle',
+      elevationScale: 2,
+      buildings: [],
+    });
+  });
+
+  it('lets only the host set the bots', () => {
+    const lobby = hostWithGuests(1).lobby;
+    const byGuest = reduce(lobby, 'p0', Client.SetBots.make({ bots: 3 }));
+    assert.strictEqual(rejection(byGuest, 'p0'), 'NotHost');
+    const set = reduce(lobby, 'host', Client.SetBots.make({ bots: 3 }));
+    assert.strictEqual(set.lobby?.bots, 3);
+    assert.deepStrictEqual(tags(sentTo(set, 'p0')), ['LobbyUpdated']);
+  });
+
+  it('pins the host bake until the arena changes', () => {
+    const lobby = hostWithGuests(1).lobby;
+    const byGuest = reduce(lobby, 'p0', Client.PinBake.make({ bake: 'abc' }));
+    assert.strictEqual(rejection(byGuest, 'p0'), 'NotHost');
+    const pinned = reduce(lobby, 'host', Client.PinBake.make({ bake: 'abc' }));
+    assert.strictEqual(pinned.lobby?.bake, 'abc');
+    const map = pinned.lobby?.map;
+    assert.isDefined(map);
+    const steeper = reduce(
+      pinned.lobby,
+      'host',
+      Client.SetMapSettings.make({ map: { ...map, elevationScale: 2 } }),
+    );
+    assert.strictEqual(steeper.lobby?.bake, 'abc');
+    const larger = reduce(
+      pinned.lobby,
+      'host',
+      Client.SetMapSettings.make({ map: { ...map, size: 'large' } }),
+    );
+    assert.isUndefined(larger.lobby?.bake);
+    const moved = reduce(
+      pinned.lobby,
+      'host',
+      Client.SetLocation.make({ location: { lat: 35.2271, lon: -80.8431 } }),
+    );
+    assert.isUndefined(moved.lobby?.bake);
+  });
+
+  it('lets only the host set the match rules', () => {
+    const lobby = hostWithGuests(1).lobby;
+    const rules = {
+      moveSpeed: 1.5,
+      jumpHeight: 2,
+      paintballSpeed: 0.75,
+      revealPlayers: true,
+    };
+    const byGuest = reduce(lobby, 'p0', Client.SetRules.make({ rules }));
+    assert.strictEqual(rejection(byGuest, 'p0'), 'NotHost');
+    const set = reduce(lobby, 'host', Client.SetRules.make({ rules }));
+    assert.deepStrictEqual(set.lobby?.rules, rules);
+  });
+
   it('refuses to create a lobby outside coverage', () => {
     const step = reduce(
       undefined,

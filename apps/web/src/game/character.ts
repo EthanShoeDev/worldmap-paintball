@@ -4,9 +4,10 @@ import {
   type RapierRigidBody,
   type useRapier,
 } from '@react-three/rapier';
+import type { MatchRules } from '@worldmap-paintball/api-contract/lobby';
 
 import type { Intent } from './intent.ts';
-import { bodyHalfHeight, bodyRadius } from './tuning.ts';
+import { bodyHalfHeight, bodyRadius, powerUpTuning } from './tuning.ts';
 
 const walkSpeed = 4.5;
 const sprintSpeed = 7.5;
@@ -30,26 +31,31 @@ export const toVec3 = ({ x, y, z }: { x: number; y: number; z: number }) =>
   [x, y, z] as const;
 
 // One frame of a capsule character, human or bot: look, move and jump. Its
-// loadout decides when it fires.
+// loadout decides when it fires. With `jetpack`, holding jump in the air
+// thrusts upward for that frame's `dt`.
 export const stepCharacter = ({
   body,
   physics: { world, rapier },
   view,
   intent,
   alive,
+  rules,
+  jetpack,
 }: {
   readonly body: RapierRigidBody;
   readonly physics: ReturnType<typeof useRapier>;
   readonly view: CharacterView;
   readonly intent: Intent;
   readonly alive: boolean;
+  readonly rules: Pick<MatchRules, 'moveSpeed' | 'jumpHeight'>;
+  readonly jetpack?: { readonly dt: number } | undefined;
 }) => {
   view.yaw -= intent.look[0];
   view.pitch = Math.max(
     -maxPitch,
     Math.min(maxPitch, view.pitch - intent.look[1]),
   );
-  const speed = intent.sprint ? sprintSpeed : walkSpeed;
+  const speed = (intent.sprint ? sprintSpeed : walkSpeed) * rules.moveSpeed;
   const [strafe, ahead] = alive ? intent.move : [0, 0];
   const sin = Math.sin(view.yaw);
   const cos = Math.cos(view.yaw);
@@ -63,12 +69,22 @@ export const stepCharacter = ({
       undefined,
       body,
     ) !== null;
+  const { thrust, maxRise } = powerUpTuning.jetpack;
+  const rising = body.linvel().y;
+  const thrusting = alive && intent.jump && !grounded && jetpack !== undefined;
   body.setLinvel(
     {
       x: (strafe * cos - ahead * sin) * speed,
-      y: alive && intent.jump && grounded ? jumpSpeed : body.linvel().y,
+      // Jump height grows with the square of take-off speed.
+      y:
+        alive && intent.jump && grounded
+          ? jumpSpeed * Math.sqrt(rules.jumpHeight)
+          : thrusting
+            ? Math.min(maxRise, rising + thrust * jetpack.dt)
+            : rising,
       z: (-strafe * sin - ahead * cos) * speed,
     },
     true,
   );
+  return { grounded, thrusting };
 };

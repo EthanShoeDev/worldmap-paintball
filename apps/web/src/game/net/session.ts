@@ -23,6 +23,14 @@ export const lobbyMatchCode = (
     ? Option.getOrUndefined(codeOf(snapshot))
     : undefined;
 
+// The lobby while it is at these coordinates, whose map and rules its match
+// and practice there play by; they only change while the lobby waits.
+export const lobbyAt = (snapshot: LobbySnapshot, coordinates: Coordinates) =>
+  LobbyStates.get(snapshot, 'Session.InLobby').pipe(
+    Option.filter(({ lobby }) => sameLocation(lobby.location, coordinates)),
+    Option.map(({ lobby }) => lobby),
+  );
+
 export const matchStatus = (snapshot: LobbySnapshot, code: string) => {
   if (!Option.contains(codeOf(snapshot), code)) return 'closed';
   if (LobbyStates.matches(snapshot, 'Session.InLobby.Playing')) {

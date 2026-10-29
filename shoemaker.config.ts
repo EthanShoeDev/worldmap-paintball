@@ -30,5 +30,7 @@ export default defineConfig({
     vscode: true,
   },
   nixPackages: [],
-  unmanaged: [],
+  // knip.ts adds the Worker entry alchemy names as a string, which shoemaker's
+  // generated entries can't express.
+  unmanaged: ['knip.ts'],
 });

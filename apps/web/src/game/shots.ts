@@ -1,5 +1,11 @@
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
-import { type Object3D, Raycaster, Vector3 } from 'three';
+import {
+  InstancedMesh,
+  Matrix4,
+  type Object3D,
+  Raycaster,
+  Vector3,
+} from 'three';
 
 import { distance, nearestPlayerHit, sub } from './net/hit-test.ts';
 import type { Vec3 } from './net/protocol.ts';
@@ -12,6 +18,7 @@ type Players = Iterable<readonly [PlayerId, Vec3]>;
 const raycaster = new Raycaster();
 // Uses the bounds tree <Bvh> builds; a paintball only needs the nearest hit.
 raycaster.firstHitOnly = true;
+const instanceMatrix = new Matrix4();
 
 const raycastArena = (
   arena: Object3D,
@@ -23,9 +30,13 @@ const raycastArena = (
   raycaster.far = far;
   const [hit] = raycaster.intersectObject(arena, true);
   if (!hit?.face) return undefined;
-  const normal = hit.face.normal
-    .clone()
-    .transformDirection(hit.object.matrixWorld);
+  const normal = hit.face.normal.clone();
+  // A tree trunk's face normal is in its instance's frame.
+  if (hit.object instanceof InstancedMesh && hit.instanceId !== undefined) {
+    hit.object.getMatrixAt(hit.instanceId, instanceMatrix);
+    normal.transformDirection(instanceMatrix);
+  }
+  normal.transformDirection(hit.object.matrixWorld);
   return {
     hit: { point: hit.point, normal } satisfies Hit,
     distance: hit.distance,

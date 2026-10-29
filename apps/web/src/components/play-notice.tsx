@@ -25,14 +25,14 @@ const PickAnother = () => (
 
 export const OutsideCoverageNotice = () => (
   <PlayNotice title={outsideCoverageMessage}>
-    <p className='text-slate-600'>Arenas can only be built there for now.</p>
+    <p className='text-muted'>Arenas can only be built there for now.</p>
     <PickAnother />
   </PlayNotice>
 );
 
 export const PlayError = ({ error }: { readonly error: unknown }) => (
   <PlayNotice title='Could not build this arena'>
-    <p className='text-slate-600'>{apiErrorMessage(error)}</p>
+    <p className='text-muted'>{apiErrorMessage(error)}</p>
     <PickAnother />
   </PlayNotice>
 );

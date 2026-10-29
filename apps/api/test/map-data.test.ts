@@ -233,10 +233,10 @@ describe('MapData.layerTerrain', () => {
     }),
   );
 
-  it.effect('bakes a flat arena when terrain fails', () =>
+  it.effect('bakes a flat arena when terrain fails, and says so', () =>
     Effect.gen(function* () {
       const result = yield* withTerrain(serving(1).layer, undefined);
-      assert.deepStrictEqual(result, arenaOf(1));
+      assert.deepStrictEqual(result, { ...arenaOf(1), missing: ['terrain'] });
       assert.isFalse('terrain' in result);
     }),
   );
@@ -294,13 +294,16 @@ describe('MapData.layerFootprints', () => {
     }),
   );
 
-  it.effect('bakes OSM buildings alone when footprints fail', () =>
+  it.effect('bakes OSM buildings alone when footprints fail, and says so', () =>
     Effect.gen(function* () {
       const result = yield* withFootprints(
         serving(1).layer,
         Effect.fail(BuildingFootprintsError.make({ message: 'R2: 500' })),
       );
-      assert.deepStrictEqual(result, arenaOf(1));
+      assert.deepStrictEqual(result, {
+        ...arenaOf(1),
+        missing: ['footprints'],
+      });
     }),
   );
 

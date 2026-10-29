@@ -47,7 +47,7 @@ export const JoinLobbyForm = ({
         Lobby code
         <div className='flex gap-2'>
           <input
-            className='min-w-0 flex-1 rounded border border-slate-300 px-3 py-2 font-mono text-lg tracking-widest uppercase'
+            className='min-w-0 flex-1 field px-3 py-2 font-mono text-lg tracking-widest uppercase'
             placeholder='ABC234'
             autoCapitalize='characters'
             autoComplete='off'
@@ -56,7 +56,7 @@ export const JoinLobbyForm = ({
             onChange={(event) => setCode(cleanLobbyCode(event.target.value))}
           />
           <button
-            className='rounded bg-slate-800 px-4 py-2 font-semibold text-white disabled:opacity-50'
+            className='button-ghost px-4 py-2 font-semibold'
             type='submit'
             disabled={!ready || joining}
           >
@@ -65,10 +65,10 @@ export const JoinLobbyForm = ({
         </div>
       </label>
       {name.length === 0 && (
-        <p className='text-sm text-slate-500'>Enter your name to join.</p>
+        <p className='text-sm text-muted'>Enter your name to join.</p>
       )}
       {Option.isSome(failure) && (
-        <p className='text-sm text-red-600'>
+        <p className='text-sm text-red-400'>
           {failureMessage(failure.value.reason)}
         </p>
       )}

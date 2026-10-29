@@ -5,6 +5,22 @@ export type Ground = Pick<Arena, 'halfSize' | 'terrain'>;
 
 type Point = readonly [number, number];
 
+type Bounds = Pick<Arena, 'halfSize' | 'round'>;
+
+// Whether (x, z) is inside the play area, at least `margin` metres in from
+// its walls: the square bake, or the circle inside it.
+export const inArena = (
+  { halfSize, round }: Bounds,
+  x: number,
+  z: number,
+  margin = 0,
+) => {
+  const limit = halfSize - margin;
+  return round === true
+    ? Math.hypot(x, z) <= limit
+    : Math.abs(x) <= limit && Math.abs(z) <= limit;
+};
+
 // A local coordinate in grid cells from the north or west edge, clamped to
 // the grid.
 const gridCoordinate = (halfSize: number, size: number, value: number) =>
@@ -66,3 +82,25 @@ export const heightRange = ({ terrain }: Ground) =>
         highest: Math.max(...terrain.heights),
       }
     : { lowest: 0, highest: 0 };
+
+// How far below the lowest ground, or past the walls, a body has to be to
+// count as fallen out of the arena.
+const fallMargin = 20;
+
+export interface Escape {
+  readonly floor: number;
+  readonly bounds: Bounds;
+}
+
+export const escapeOf = (arena: Ground & Bounds): Escape => ({
+  floor: heightRange(arena).lowest - fallMargin,
+  bounds: {
+    halfSize: arena.halfSize + fallMargin,
+    ...(arena.round === true && { round: true as const }),
+  },
+});
+
+export const hasEscaped = (
+  { floor, bounds }: Escape,
+  { x, y, z }: { readonly x: number; readonly y: number; readonly z: number },
+) => y < floor || !inArena(bounds, x, z);

@@ -10,12 +10,12 @@ import type { Group, Object3D } from 'three';
 import { MarkerModel } from './marker-model.tsx';
 import { colorOf, matchViewAtom, type NetGame } from './net/net-game.ts';
 import {
+  allWeaponIds,
   bodyHalfHeight,
   bodyRadius,
   eyeOffset,
   markerTuning,
   type WeaponId,
-  weaponIds,
 } from './tuning.ts';
 
 type Net = NetGame['Service'];
@@ -25,6 +25,7 @@ const { held } = markerTuning;
 interface AvatarParts {
   readonly body: Group;
   readonly aim: Object3D;
+  readonly ghost: Object3D;
   readonly models: ReadonlyArray<readonly [WeaponId, Object3D]>;
 }
 
@@ -51,10 +52,23 @@ const Avatar = ({
       <boxGeometry args={[0.32, 0.08, 0.1]} />
       <meshStandardMaterial color='#111827' />
     </mesh>
+    {/* X-ray: drawn last and over everything, walls included. */}
+    <mesh name='ghost' renderOrder={10} visible={false}>
+      <capsuleGeometry
+        args={[bodyRadius + 0.05, bodyHalfHeight * 2 + 0.3, 4, 12]}
+      />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.55}
+        depthTest={false}
+        depthWrite={false}
+      />
+    </mesh>
     {/* Same transforms as heldMuzzle. */}
     <group name='aim' position={[...held.pivot]}>
       <group position={[...held.position]} scale={held.scale}>
-        {Arr.map(weaponIds, (weapon) => (
+        {Arr.map(allWeaponIds, (weapon) => (
           <group key={weapon} name={weapon} visible={false}>
             <MarkerModel weapon={weapon} color={color} castShadow />
           </group>
@@ -73,7 +87,14 @@ const Avatar = ({
 );
 
 // Remote players drawn at their interpolated poses, ~100 ms in the past.
-export const RemotePlayers = ({ net }: { readonly net: Net }) => {
+// While `xray` says so, each also shows through walls.
+export const RemotePlayers = ({
+  net,
+  xray,
+}: {
+  readonly net: Net;
+  readonly xray: () => boolean;
+}) => {
   const present = new Set(useAtomValue(matchViewAtom).present);
   const avatars = useRef(new Map<PlayerId, AvatarParts>());
   const others = Arr.filter(
@@ -83,10 +104,12 @@ export const RemotePlayers = ({ net }: { readonly net: Net }) => {
 
   useFrame(() => {
     const poses = net.updateRemotes();
-    for (const [id, { body, aim, models }] of avatars.current) {
+    const seeThrough = xray();
+    for (const [id, { body, aim, ghost, models }] of avatars.current) {
       const pose = poses.get(id);
       body.visible = pose !== undefined;
       if (!pose) continue;
+      ghost.visible = seeThrough;
       body.position.set(...pose.position);
       body.rotation.set(0, pose.yaw, 0);
       aim.rotation.set(pose.pitch, 0, 0);
@@ -103,12 +126,13 @@ export const RemotePlayers = ({ net }: { readonly net: Net }) => {
       color={colorOf(net, player.id)}
       ref={(group) => {
         const aim = group?.getObjectByName('aim');
-        if (group && aim) {
-          const models = Arr.flatMap(weaponIds, (weapon) => {
+        const ghost = group?.getObjectByName('ghost');
+        if (group && aim && ghost) {
+          const models = Arr.flatMap(allWeaponIds, (weapon) => {
             const model = aim.getObjectByName(weapon);
             return model ? [[weapon, model] as const] : [];
           });
-          avatars.current.set(player.id, { body: group, aim, models });
+          avatars.current.set(player.id, { body: group, aim, ghost, models });
         }
         return () => {
           avatars.current.delete(player.id);

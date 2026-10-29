@@ -10,11 +10,13 @@ import {
 } from 'effect';
 import { Atom } from 'effect/reactivity';
 
-import { arenaAtom } from '../../api-client.ts';
 import { playerNameAtom } from '../../components/player-name-atom.ts';
 import { PeerNetwork, PeerNetworkError } from '../../lobby/peer-network.ts';
-import type { Coordinates } from '../../location/coordinates.ts';
-import { arenaSpawns, botPlayer, NetGame } from './net-game.ts';
+import { customArenaAtom, type MatchKey } from '../map-settings.ts';
+import { padsOf } from '../powerups.ts';
+import { weaponsAt } from '../tuning.ts';
+import { botPlayers } from './bots.ts';
+import { arenaSpawns, NetGame } from './net-game.ts';
 
 const practiceId = 'practice-you';
 
@@ -42,24 +44,28 @@ export const localPeerNetwork = Effect.fn('localPeerNetwork')(function* (
   });
 });
 
-export interface PracticeKey extends Coordinates {
+export interface PracticeKey extends MatchKey {
   readonly bots: number;
 }
 
 // One per arena and bot count, like netGameAtom; leaving /play ends it.
 export const practiceGameAtom = Atom.family(
-  ({ bots, ...coordinates }: PracticeKey) =>
+  ({ bots, rules, ...key }: PracticeKey) =>
     Atom.make((get) =>
       Effect.gen(function* () {
-        const arena = yield* get.result(arenaAtom(coordinates));
+        const arena = yield* get.result(customArenaAtom(key));
         const name = Str.trim(get(playerNameAtom));
         const roster = [
           { id: practiceId, name: name.length > 0 ? name : 'You', ready: true },
-          ...Array.from({ length: bots }, (_, index) => botPlayer(index + 1)),
+          ...botPlayers(bots),
         ];
         const network = yield* localPeerNetwork(roster);
         const context = yield* Layer.build(
-          NetGame.layerWith(arenaSpawns(arena)),
+          NetGame.layerWith(
+            arenaSpawns(arena),
+            weaponsAt(rules.paintballSpeed),
+            padsOf(arena),
+          ),
         ).pipe(Effect.provideService(PeerNetwork, network));
         return Context.get(context, NetGame);
       }),

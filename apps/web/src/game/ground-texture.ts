@@ -83,5 +83,43 @@ export const paintGround = (
   context.globalAlpha = photo ? groundTuning.photoAlpha.roads : 1;
   context.drawImage(roads, 0, 0);
   context.globalAlpha = 1;
+  if (arena.round === true) {
+    // Out of bounds past a round arena's wall: the square's corners, dimmed.
+    context.setTransform(layer.getTransform());
+    context.fillStyle = 'rgb(20 24 32 / 0.55)';
+    context.beginPath();
+    context.rect(-halfSize, -halfSize, 2 * halfSize, 2 * halfSize);
+    context.arc(0, 0, halfSize, 0, Math.PI * 2, true);
+    context.fill();
+    context.resetTransform();
+  }
+  return canvas;
+};
+
+// The ground seen from above with building footprints on it, `size` pixels
+// square: the editor's backdrop and the minimap.
+export const paintPlan = (
+  arena: Arena,
+  ground: CanvasImageSource,
+  size: number,
+) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) return canvas;
+  context.drawImage(ground, 0, 0, size, size);
+  const { halfSize } = arena;
+  const scale = size / (2 * halfSize);
+  context.setTransform(scale, 0, 0, scale, halfSize * scale, halfSize * scale);
+  context.fillStyle = 'rgba(40, 40, 48, 0.6)';
+  context.strokeStyle = '#f1eee8';
+  context.lineWidth = 1 / scale;
+  for (const { footprint } of arena.buildings) {
+    trace(context, footprint);
+    context.closePath();
+    context.fill();
+    context.stroke();
+  }
   return canvas;
 };

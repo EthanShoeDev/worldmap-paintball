@@ -1,5 +1,9 @@
 import { assert, describe, it } from '@effect/vitest';
-import type { Lobby } from '@worldmap-paintball/api-contract/lobby';
+import {
+  type Lobby,
+  defaultMapSettings,
+  defaultMatchRules,
+} from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, String as Str } from 'effect';
 
 import {
@@ -39,6 +43,9 @@ const lobby = (ready: ReadonlyArray<boolean>): Lobby => ({
   phase: 'waiting',
   hostId: 'host',
   location: { lat: 0, lon: 0 },
+  map: defaultMapSettings,
+  bots: 0,
+  rules: defaultMatchRules,
   players: [
     { id: 'host', name: 'Host', ready: false },
     ...Arr.map(ready, (flag, index) => ({

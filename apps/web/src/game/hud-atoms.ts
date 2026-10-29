@@ -4,6 +4,7 @@ import { Atom } from 'effect/reactivity';
 
 import { connectedGamepads } from './devices.ts';
 import { type CombatView, combatViewOf, makeLoadout } from './loadout.ts';
+import type { PowerUpView } from './powerups.ts';
 
 const listen = (
   target: EventTarget,
@@ -42,3 +43,6 @@ export const combatViewAtom = Atom.make<CombatView>(
 // Counts this player's balls that reached another player; each new count
 // flashes the hit marker.
 export const hitMarkerAtom = Atom.make(0);
+
+// The local player's running power-up; set by the render loop on a change.
+export const powerUpViewAtom = Atom.make<PowerUpView | undefined>(undefined);

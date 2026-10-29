@@ -1,6 +1,13 @@
 import { assert, describe, it } from '@effect/vitest';
 
-import { groundBelow, heightAt, heightRange } from '../src/game/terrain.ts';
+import {
+  escapeOf,
+  groundBelow,
+  hasEscaped,
+  heightAt,
+  heightRange,
+  inArena,
+} from '../src/game/terrain.ts';
 
 // 3×3 over ±10 m: nodes every 10 m, rows from north (z = -10) to south.
 const ground = {
@@ -67,5 +74,35 @@ describe('heightRange', () => {
       lowest: 0,
       highest: 0,
     });
+  });
+});
+
+describe('hasEscaped', () => {
+  const escape = escapeOf({
+    halfSize: 100,
+    terrain: { size: 2, heights: [-5, 0, 0, 10] },
+  });
+
+  it('catches a body below the lowest ground or past the walls', () => {
+    assert.isFalse(hasEscaped(escape, { x: 0, y: -5, z: 0 }));
+    assert.isTrue(hasEscaped(escape, { x: 0, y: -26, z: 0 }));
+    assert.isTrue(hasEscaped(escape, { x: 121, y: 0, z: 0 }));
+    assert.isTrue(hasEscaped(escape, { x: 0, y: 0, z: -121 }));
+  });
+
+  it('follows a round arena wall, so its corners are out', () => {
+    const round = escapeOf({ halfSize: 100, round: true });
+    assert.isFalse(hasEscaped(round, { x: 0, y: 0, z: 119 }));
+    assert.isTrue(hasEscaped(round, { x: 90, y: 0, z: 90 }));
+    assert.isFalse(hasEscaped(escape, { x: 90, y: 0, z: 90 }));
+  });
+});
+
+describe('inArena', () => {
+  it('keeps a margin inside the square or the circle', () => {
+    assert.isTrue(inArena({ halfSize: 50 }, 44, 44, 5));
+    assert.isFalse(inArena({ halfSize: 50 }, 46, 0, 5));
+    assert.isFalse(inArena({ halfSize: 50, round: true }, 40, 40));
+    assert.isTrue(inArena({ halfSize: 50, round: true }, 0, -45, 5));
   });
 });

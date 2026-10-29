@@ -31,6 +31,7 @@ export const appendSplat = (
   splats: ReadonlyArray<Splat>,
   { point, normal }: Hit,
   color: string,
+  scale = 1,
 ) => {
   const id = (splats.at(-1)?.id ?? -1) + 1;
   const splat: Splat = {
@@ -39,7 +40,7 @@ export const appendSplat = (
     position: point.clone().addScaledVector(normal, 0.02),
     rotation: new Quaternion().setFromUnitVectors(facing, normal),
     color,
-    size: 0.2 + (id % 3) * 0.06,
+    size: (0.2 + (id % 3) * 0.06) * scale,
   };
   return Arr.append(Arr.takeRight(splats, maxSplats - 1), splat);
 };
