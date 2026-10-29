@@ -1,26 +1,45 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
   "ui": "tui",
-  // Task `command` is experimental; it lets every package share one
-  // definition of a leaf command instead of a copied script.
   "futureFlags": {
-    "experimentalTaskCommand": true
+    // Task `command` is experimental; it lets every package share one
+    // definition of a leaf command instead of a copied script.
+    "experimentalTaskCommand": true,
+    // `--affected` selects only the tasks whose `inputs` match the diff,
+    // not every task in a changed package.
+    "affectedUsingTaskInputs": true,
+    // actions/checkout leaves the PR base only as `origin/<base>`; without
+    // this `--affected` cannot resolve it and runs every task.
+    "githubActionsRemoteBaseRefFallback": true
   },
-  "globalPassThroughEnv": ["NIX_*", "TMPDIR"],
-  "globalEnv": ["APP_ENV", "PORT", "ALCHEMY_STAGE", "ALCHEMY_PROFILE"],
+  // Bounds the local cache, which CI also restores between runs.
+  "cacheMaxSize": "2GB",
+  // Declared vars are read at run time (ports, deploy stages, secrets), not
+  // baked into outputs, so they reach tasks without keying the cache. Vite's
+  // build-time VITE_* vars are hashed by turbo's framework inference. NIX_*
+  // passes through by default.
+  "globalPassThroughEnv": [
+    "TMPDIR",
+    "PORT",
+    "ALCHEMY_STAGE",
+    "ALCHEMY_PROFILE"
+  ],
+  "globalEnv": ["APP_ENV"],
   "globalDependencies": ["patches/**"],
   // Task-inheritance pattern:
   //   "^task"        -> run `task` in all DEPENDENCY packages first
-  //   "with": [...]  -> run these tasks in parallel for the SAME package
+  //   "task"         -> run `task` in the SAME package first
   //   "//#task"      -> a root-only task (defined in root package.json)
+  //   "pkg#task"     -> `task` in one named package
   // Leaf commands every package shares are task `command`s (argv, no shell),
   // defined here once instead of copied into each package.json. A package script
   // of the same name overrides one; `"command": null` in a package's turbo.jsonc
   // opts the package out. Other leaf commands are package scripts. Aggregates
-  // (`lint`, `lint:check`) have neither: they only fan out, so turbo is never
-  // called from a script.
-  // Turbo uses shallow extend: a package overriding a task must copy the whole
-  // definition, it is not merged with the root one.
+  // (`lint`, `lint:check`) have neither: they only fan out through `dependsOn`,
+  // so turbo is never called from a script.
+  // A package turbo.jsonc inherits each root task: scalar fields carry over, and
+  // an array field it sets replaces the root's array.
+  // @see https://turborepo.dev/docs/reference/package-configurations#inheritance-behavior
   // The root depends on no internal package: turbo hashes the source of every
   // internal package the root depends on into the global hash, so one such
   // dependency misses cache for every task in the repo.
@@ -37,8 +56,8 @@
       "outputs": ["dist/**", ".output/**"],
       "outputLogs": "new-only"
     },
+    // Internal packages export source, so a dev server builds nothing first.
     "dev": {
-      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
@@ -70,6 +89,8 @@
       ],
       "outputLogs": "new-only"
     },
+    // Fixers are never cached: a hit on the pre-fix hash would replay the old
+    // run and leave the files unfixed.
     "oxlint:fix": {
       "command": [
         "bun",
@@ -80,30 +101,26 @@
         "--fix",
         "."
       ],
-      "dependsOn": ["^transit"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!**/*.md",
         "$TURBO_ROOT$/oxlint.config.ts"
       ],
-      "outputLogs": "new-only"
+      "cache": false
     },
-    // `lint` and `lint:check` have no script on purpose: a task with a command
-    // stops its `with` tasks when it exits (turborepo#14163), which would cancel
-    // a package's typecheck as soon as its oxlint finished.
     "lint:check": {
-      "with": ["oxlint:check", "typecheck", "//#lint:check:root"],
+      "dependsOn": ["oxlint:check", "typecheck", "//#lint:check:root"],
       "outputLogs": "new-only"
     },
     "lint": {
-      "with": ["oxlint:fix", "typecheck", "//#lint:root"],
+      "dependsOn": ["oxlint:fix", "typecheck", "//#lint:root"],
       "outputLogs": "new-only"
     },
     // === Root-only tasks (bodies live in root package.json scripts) ===
     // Repo-wide checkers. Packages reach them through `lint:check`; CI runs
     // `//#lint:check:root` directly so they run even when no package changed.
     "//#lint:check:root": {
-      "with": [
+      "dependsOn": [
         "//#typecheck",
         "//#oxlint:check",
         "//#oxfmt:check",
@@ -115,7 +132,7 @@
       ]
     },
     "//#lint:root": {
-      "with": [
+      "dependsOn": [
         "//#typecheck",
         "//#oxlint:fix",
         "//#oxfmt:fix",
@@ -129,31 +146,26 @@
     // The root package checks only root-level files (configs); every package
     // checks itself.
     "//#typecheck": {
-      "inputs": [
-        "*.ts",
-        "tsconfig.json",
-        "apps/api/package.json",
-        "apps/api/src/**"
-      ]
+      "inputs": ["*.ts", "tsconfig.json"]
     },
     "//#oxlint:check": {
-      "inputs": [
-        "*.ts",
-        "tsconfig.json",
-        "apps/api/package.json",
-        "apps/api/src/**"
-      ]
+      "inputs": ["*.ts", "tsconfig.json"]
     },
     "//#oxlint:fix": {
-      "inputs": [
-        "*.ts",
-        "tsconfig.json",
-        "apps/api/package.json",
-        "apps/api/src/**"
-      ]
+      "inputs": ["*.ts", "tsconfig.json"],
+      "cache": false
     },
     "//#oxfmt:check": {},
+    // Fixers that write the same files run one after another: oxlint and
+    // catalog fixes first, then oxfmt formats what they wrote, then knip. knip
+    // goes last so no other fix pulls it in.
     "//#oxfmt:fix": {
+      "dependsOn": [
+        "//#oxlint:fix",
+        "//#catalog:fix",
+        "@worldmap-paintball/web#oxlint:fix",
+        "@worldmap-paintball/api#oxlint:fix"
+      ],
       "cache": false
     },
     "//#jscpd:check": {},
@@ -161,6 +173,7 @@
     // knip.ts makes it delete live code, so review its diff like a codemod.
     "//#knip:check": {},
     "//#knip:fix:danger": {
+      "dependsOn": ["//#oxfmt:fix"],
       "cache": false
     },
     "//#catalog:check": {

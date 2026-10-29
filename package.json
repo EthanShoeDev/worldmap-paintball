@@ -114,6 +114,7 @@
     "turbo": "catalog:",
     "typescript": "catalog:",
     "varlock": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   },
   "overrides": {
@@ -146,6 +147,12 @@
     "@effect/sql-sqlite-wasm": "4.1.0",
     "@effect/vitest": "4.1.0",
     "effect": "4.1.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "bun",
+      "version": "1.4.4"
+    }
   },
   "engines": {
     "node": "^22.18.0 || ^24.0.0 || >=26.0.0"

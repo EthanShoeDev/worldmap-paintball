@@ -1,5 +1,5 @@
 {
-  "cliVersion": "0.1.1",
+  "cliVersion": "0.2.0",
   "files": {
     ".changeset/config.json": {
       "sha256": "9063b5171c2ffd19e1816cd601e09b10c17136f673e9fc71256b6cc67eaabe16",
@@ -26,18 +26,18 @@
       "strategy": "owned"
     },
     ".github/workflows/ci.yml": {
-      "sha256": "39b58b9a19d7f309ed6c3cb0e81ac7f441a32274c10c403249e0260115bae0b8",
+      "sha256": "330f99b6dc778d094841765f9dda25f8bf64f304749382f117172b8e8a7a9b84",
       "strategy": "owned"
     },
     ".gitignore": {
-      "sha256": "18ced5413dae77100cfe46f12f359749a29c01c326a8424204416a123acd22bc",
+      "sha256": "c32c007ff0ed4de382d9aa115246b2b6d77459b2115ecd4965d402cf022be5d9",
       "strategy": "managed",
       "owned": [
         "shoemaker"
       ]
     },
     ".jscpd.json": {
-      "sha256": "d5387b75e23add36d65c0764229d003756051ece98a62e45fe35da4b31a7ea2e",
+      "sha256": "32146a199a9dde83e15f645fdf794ad099b635973ed2574eb7458be1f05e433c",
       "strategy": "owned"
     },
     ".vscode/extensions.json": {
@@ -45,7 +45,7 @@
       "strategy": "owned"
     },
     ".vscode/settings.json": {
-      "sha256": "2d22e6cd902c8b560a9ead3eb7407261fed3431a1a7739b2fed1e46473412546",
+      "sha256": "4cd89db80db1d079dc944207324b3f0016a32cca7b26649e2bd2f203b396a80d",
       "strategy": "owned"
     },
     "AGENTS.md": {
@@ -62,7 +62,7 @@
       "strategy": "seed"
     },
     "apps/api/package.json": {
-      "sha256": "b65fe4967e94f8701eb458c271d6bad71acab33ab8ad37403341fc5da5161ffe",
+      "sha256": "c98e41b764cd2e12228184f009bd2ca3447581e75765a0a4d5ac9c3cac66bafa",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -70,14 +70,12 @@
         "/private",
         "/type",
         "/exports/.~1api",
-        "/exports/.~1worker",
+        "/exports/.~1handlers",
         "/exports/.~1package.json",
         "/scripts/dev",
         "/scripts/build",
         "/scripts/start",
-        "/dependencies/@alchemy.run~1cloudflare",
         "/dependencies/@effect~1platform-bun",
-        "/dependencies/alchemy",
         "/dependencies/effect",
         "/devDependencies/@effect~1vitest",
         "/devDependencies/@types~1node",
@@ -104,10 +102,6 @@
       "sha256": "f3f582f7f98b72a1421650fde9e36aa022a6579dcb94943b6efc4db53851412a",
       "strategy": "seed"
     },
-    "apps/api/src/worker.ts": {
-      "sha256": "ea946ccabadec483454189aa6f4d760621098f1435cc46bfee26a1fd113381d5",
-      "strategy": "seed"
-    },
     "apps/api/test/api.test.ts": {
       "sha256": "2a971e2783f4b57dbb9558015c96a2399cbeb2b39b5f84d2f4f350b842c9dba4",
       "strategy": "seed"
@@ -121,15 +115,15 @@
       "strategy": "owned"
     },
     "apps/api/turbo.jsonc": {
-      "sha256": "5f84b03201391670fce238832f9d70a9ecdab66d93856726068a7258e303e7ae",
+      "sha256": "9deb66fe5017dfea9623d35650741437a8a26998d3fb35969761075e1bab028d",
       "strategy": "owned"
     },
     "apps/api/vitest.config.ts": {
-      "sha256": "8092ee90416cd4e2b4483b581cfd770bf92b6d440456efc166b3958de1ef68ae",
+      "sha256": "589478b483d50e3fa4049afbd14ffd4164c56b95d3ed2aa10d7375eb3d67faa9",
       "strategy": "owned"
     },
     "apps/web/package.json": {
-      "sha256": "64bcb114ea1d6c92873df130babff1fdd999c5553f21059ec18b50c442477b5e",
+      "sha256": "8cf0d53686d4eed4e58027137835f09e5e980b3defaf4c59c812235f5acefb91",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -140,11 +134,14 @@
         "/scripts/build",
         "/scripts/start",
         "/scripts/clean",
+        "/dependencies/@worldmap-paintball~1api",
         "/dependencies/@tanstack~1react-router",
         "/dependencies/@tanstack~1react-start",
+        "/dependencies/effect",
         "/dependencies/react",
         "/dependencies/react-dom",
         "/devDependencies/@babel~1core",
+        "/devDependencies/@effect~1vitest",
         "/devDependencies/@rolldown~1plugin-babel",
         "/devDependencies/@tailwindcss~1vite",
         "/devDependencies/@types~1node",
@@ -163,6 +160,10 @@
       "sha256": "dc2e16841f8c83b08b44fe01199da937127c946d7d414f291e0efc70ca5c0f3a",
       "strategy": "seed"
     },
+    "apps/web/src/api.server.ts": {
+      "sha256": "35c09f142d7f3372e4ff13760178ac98159e525f15c92814c513c79906d6ccf6",
+      "strategy": "seed"
+    },
     "apps/web/src/components/welcome.tsx": {
       "sha256": "ded1fbd7328f640baa0578a03a92152fc701e1ea39805787de760342d8096f8e",
       "strategy": "seed"
@@ -173,6 +174,10 @@
     },
     "apps/web/src/routes/__root.tsx": {
       "sha256": "5a4531219a71eb3ddf3e36f585a07162eff93be1b11a6dcc74700d3a231d7ac4",
+      "strategy": "seed"
+    },
+    "apps/web/src/routes/api.$.ts": {
+      "sha256": "0d13029a2335313f4cfc7af1344699ff56110b5534ef21edd73243aaae46ff8c",
       "strategy": "seed"
     },
     "apps/web/src/routes/index.tsx": {
@@ -187,6 +192,10 @@
       "sha256": "11b8e69e89a31e87e25ec43c92ffcddd0cb794db757d6167ae31ee058f9ea425",
       "strategy": "seed"
     },
+    "apps/web/test/api-client.test.ts": {
+      "sha256": "8f73ed96972558cfe29290db81a5d3a815c1ad074c78aa2d1a88da8be737f4c3",
+      "strategy": "seed"
+    },
     "apps/web/test/welcome.test.tsx": {
       "sha256": "27d3d1b76d65eb5732f5054213dbc262a6b432876b5fd8c5b4d35cf4f3d9e2b0",
       "strategy": "seed"
@@ -196,15 +205,15 @@
       "strategy": "owned"
     },
     "apps/web/turbo.jsonc": {
-      "sha256": "5f84b03201391670fce238832f9d70a9ecdab66d93856726068a7258e303e7ae",
+      "sha256": "9deb66fe5017dfea9623d35650741437a8a26998d3fb35969761075e1bab028d",
       "strategy": "owned"
     },
     "apps/web/vite.config.ts": {
-      "sha256": "89296c8a3f2105962564ed51c988380eb0202a257684e26d15a0808ee4538b40",
+      "sha256": "504b1bea5cc42761cfb54b52590d683634ca46f28646e004b16c5dbf106a6c11",
       "strategy": "owned"
     },
     "apps/web/vitest.config.ts": {
-      "sha256": "1f6a03e7f53423cb251f12a54f0b5a79d7fb9d5a9c15a940176bf836ac4c8047",
+      "sha256": "cc9cba0bcd0cb871d99e0211c516233a79a8069ab4f1ae75fe369cb03348c059",
       "strategy": "owned"
     },
     "CLAUDE.md": {
@@ -242,7 +251,7 @@
       ]
     },
     "package.json": {
-      "sha256": "78c78540f0380e9ffefa26730f8c59833b305afb7afa396f5258a7fc852d3107",
+      "sha256": "f5b94730d4994cfc4ed8b72d873fad1516de08282d0f7d3601fafa97b6e34fa1",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -334,6 +343,7 @@
         "/devDependencies/turbo",
         "/devDependencies/typescript",
         "/devDependencies/varlock",
+        "/devDependencies/vite",
         "/devDependencies/vitest",
         "/devDependencies/@alchemy.run~1cloudflare",
         "/devDependencies/@alchemy.run~1frontend-frameworks",
@@ -370,6 +380,8 @@
         "/overrides/@effect~1vitest",
         "/overrides/effect",
         "/engines/node",
+        "/devEngines/packageManager/name",
+        "/devEngines/packageManager/version",
         "/packageManager"
       ]
     },
@@ -382,11 +394,11 @@
       "strategy": "owned"
     },
     "turbo.jsonc": {
-      "sha256": "5891e84e0f58afb9594d18a5502517adad9955e4b46435a2ba139f97161176b0",
+      "sha256": "5c45dad1acc2c0ca34cff2c0bdad7f250ea8529d14722af7fd3586f701eda459",
       "strategy": "owned"
     },
     "vitest.config.ts": {
-      "sha256": "a76dc5a7b7c2c9a4c42bc11bd4aa7213f82027faca439f57e0863ac45116ce15",
+      "sha256": "174a63e14896709e294762927a977f7a9edb0e449cf2d47b82a57a567bcad641",
       "strategy": "owned"
     }
   }

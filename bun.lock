@@ -28,6 +28,7 @@
         "turbo": "catalog:",
         "typescript": "catalog:",
         "varlock": "catalog:",
+        "vite": "catalog:",
         "vitest": "catalog:",
       },
     },

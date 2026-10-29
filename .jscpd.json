@@ -27,7 +27,7 @@
     "**/.claude/**",
     "**/.github/**",
     "**/.changeset/**",
-    "**/docs/cloned-repos-as-docs/**",
+    "**/.external/**",
     "**/README.md",
     "**/AGENTS.md",
     "**/CLAUDE.md",

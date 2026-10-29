@@ -2,16 +2,6 @@
   "$schema": "../../node_modules/turbo/schema.json",
   "extends": ["//"],
   "tasks": {
-    // Dev server: long-running, never cached.
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
-      "outputLogs": "new-only"
-    },
     "start": {
       "dependsOn": ["build"],
       "cache": false,

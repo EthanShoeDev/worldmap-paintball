@@ -1,8 +1,7 @@
-import { defineConfig } from 'vitest/config';
+import { defineProject } from 'vitest/config';
 
-export default defineConfig({
+export default defineProject({
   test: {
-    name: 'api-unit',
     include: ['test/**/*.test.{ts,tsx}'],
   },
 });

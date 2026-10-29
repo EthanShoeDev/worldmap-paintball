@@ -28,7 +28,7 @@
     "**/.output/**": true,
     "**/coverage/**": true,
     "**/result": true,
-    "**/docs/cloned-repos-as-docs/**": true
+    "**/.external/**": true
   },
   "tailwindCSS.classAttributes": ["class", "className"],
   "tailwindCSS.classFunctions": ["cn", "clsx", "cva"]

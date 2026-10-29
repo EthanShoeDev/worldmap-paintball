@@ -25,6 +25,11 @@ jobs:
           # Affected detection diffs against the base commit.
           fetch-depth: 0
       - uses: ./.github/actions/setup
+      - uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-lint-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-lint-${{ runner.os }}-
       # Fails when generated tooling files were hand-edited or the repo is
       # behind shoemaker.config.ts; fix with `shoemaker sync`.
       - run: bunx shoemaker sync --check --allow-dirty
@@ -37,5 +42,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup
-      - run: bun run test
+      - uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-test-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-test-${{ runner.os }}-
+      - run: bunx turbo run test build --affected --continue=dependencies-successful

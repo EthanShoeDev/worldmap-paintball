@@ -1,8 +1,14 @@
-import { defineConfig } from 'vitest/config';
+import { defineProject, mergeConfig } from 'vitest/config';
 
-export default defineConfig({
-  test: {
-    name: 'web-unit',
-    include: ['test/**/*.test.{ts,tsx}'],
-  },
-});
+import viteConfig from './vite.config.ts';
+
+// A vitest.config replaces vite.config, so merge it: tests run with the same
+// plugins as the build.
+export default mergeConfig(
+  viteConfig,
+  defineProject({
+    test: {
+      include: ['test/**/*.test.{ts,tsx}'],
+    },
+  }),
+);

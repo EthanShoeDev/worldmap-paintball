@@ -20,7 +20,11 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      importProtection: {
+        client: { specifiers: ['@worldmap-paintball/api/handlers'] },
+      },
+    }),
     react(),
     babel({ presets: [reactCompilerPreset()] }),
   ],
