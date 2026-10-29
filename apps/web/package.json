@@ -10,18 +10,32 @@
     "clean": "rm -rf dist .tanstack .turbo"
   },
   "dependencies": {
+    "@effect/atom-react": "catalog:",
+    "@effect/platform-browser": "catalog:",
+    "@geckos.io/snapshot-interpolation": "catalog:",
+    "@react-three/drei": "catalog:",
+    "@react-three/fiber": "catalog:",
+    "@react-three/rapier": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "@typeonce/effect-machine": "catalog:",
+    "@worldmap-paintball/api": "workspace:*",
+    "effect": "catalog:",
+    "maplibre-gl": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-map-gl": "catalog:",
+    "three": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
+    "@effect/vitest": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/three": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "shoemaker-typescript-config": "catalog:",

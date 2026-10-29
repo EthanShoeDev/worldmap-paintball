@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./api": "./src/api.ts",
+    "./lobby/protocol": "./src/lobby/protocol.ts",
     "./worker": "./src/worker.ts",
     "./package.json": "./package.json"
   },

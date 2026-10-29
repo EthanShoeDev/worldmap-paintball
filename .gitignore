@@ -28,3 +28,4 @@ dist/
 # shoemaker:end shoemaker
 
 # Project-specific ignores go below.
+.external/
