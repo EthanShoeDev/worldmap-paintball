@@ -8,6 +8,7 @@ export default defineConfig({
     {
       name: 'web',
       kind: 'tanstack-start',
+      api: 'api',
     },
     {
       name: 'api',

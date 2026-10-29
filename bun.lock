@@ -162,11 +162,11 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-map-gl": "^8.1.3",
-    "shoemaker": "^0.1.0",
-    "shoemaker-knip-config": "^0.1.0",
-    "shoemaker-oxfmt-config": "^0.1.0",
-    "shoemaker-oxlint-config": "^0.1.0",
-    "shoemaker-typescript-config": "^0.1.0",
+    "shoemaker": "^0.2.0",
+    "shoemaker-knip-config": "^0.2.0",
+    "shoemaker-oxfmt-config": "^0.2.0",
+    "shoemaker-oxlint-config": "^0.2.0",
+    "shoemaker-typescript-config": "^0.2.0",
     "tailwindcss": "^4.3.3",
     "three": "^0.186.1",
     "tsdown": "^0.23.3",
@@ -1415,17 +1415,17 @@
 
     "shell-quote": ["shell-quote@1.12.0", "", {}, "sha512-PcByqNyT/38F2kDNi006HAMRJaULuBzq/FOsw3qdZvX/GA9W/jamDaRskgHjubHiftXK5sIFxLNkvrXUwcof6Q=="],
 
-    "shoemaker": ["shoemaker@0.1.1", "", { "dependencies": { "@effect/platform-bun": "4.1.0", "@effect/platform-node-shared": "4.1.0", "effect": "4.1.0", "jsonc-parser": "^3.3.1", "oxfmt": "0.75.0", "shoemaker-oxfmt-config": "0.1.1" }, "bin": { "shoemaker": "dist/bin.mjs" } }, "sha512-qqdI6K50ab7tYiu3xtcfua/Brka4ZM2UCtz9/kVW/txlOzc+cc1jq43b3wiIeIBftRK1pVgbrvWvp2RfLyS99A=="],
+    "shoemaker": ["shoemaker@0.2.0", "", { "dependencies": { "@effect/platform-bun": "4.1.0", "@effect/platform-node-shared": "4.1.0", "effect": "4.1.0", "jsonc-parser": "^3.3.1", "oxfmt": "0.75.0", "shoemaker-oxfmt-config": "0.2.0" }, "bin": { "shoemaker": "dist/bin.mjs" } }, "sha512-ocrvzk9UwFyMXOg93hpgIS+kkwDj8K2NTMDw0TF3AZDcNyMeJOB1qPtXbYLa1O3JYdyn/Dhy0KTUAeTBwpw/Gg=="],
 
-    "shoemaker-knip-config": ["shoemaker-knip-config@0.1.1", "", { "peerDependencies": { "knip": "^6.43.0" } }, "sha512-J2eD6psxHe4w7mOKuS8RZNW8NXCHExMDrimU//XCDioRP7SkqZXMRSqSmpnogvR35FYHe5jaoLUoBdTM/uhL2w=="],
+    "shoemaker-knip-config": ["shoemaker-knip-config@0.2.0", "", { "peerDependencies": { "knip": "^6.43.0" } }, "sha512-6NmXpcM8+U8QKIs54vXKxKqn8AZZp3dGLBzozRraenGn1Vujzm6XSgJFM1HMtgVv9vkVeEz3N2mg6ZSe+p+p2w=="],
 
-    "shoemaker-oxfmt-config": ["shoemaker-oxfmt-config@0.1.1", "", { "peerDependencies": { "oxfmt": "0.75.0" } }, "sha512-bMoJ3rLHAOQsDd0TANIUOc8b34lh5/7it/fpxTL9sI3S/RMcuilSxdv95eY1ZHqW0CzBgIYSO1gF6ojXa+smbg=="],
+    "shoemaker-oxfmt-config": ["shoemaker-oxfmt-config@0.2.0", "", { "peerDependencies": { "oxfmt": "0.75.0" } }, "sha512-AT+Q2k7G0RAXZuUUwFC2fsciDvAYPydTZcWMV0AJQZ21c3rDtxeUDfYs2Pty168RjCX27QvuUenVJ0RqYmaA1A=="],
 
-    "shoemaker-oxlint-config": ["shoemaker-oxlint-config@0.1.1", "", { "dependencies": { "@oxlint-flat-config/composer": "^0.3.1", "@tanstack/eslint-plugin-query": "^5.105.0", "eslint-plugin-playwright": "^2.12.1", "eslint-plugin-testing-library": "^7.16.2", "oxlint-flat-config": "^0.4.0", "shoemaker-oxlint-plugins": "0.1.1" }, "peerDependencies": { "@effect/tsgo": "0.63.0", "oxlint": "1.90.0", "oxlint-tsgolint": "7.0.2005" } }, "sha512-huKqA0uzetGyDZqZIoxW/ZPnw9SXnUwxDMXNj5rL+P3TE24VJMVVCzJcLqxPfaE/rxHHSnlMqCcrl66td4jXtQ=="],
+    "shoemaker-oxlint-config": ["shoemaker-oxlint-config@0.2.0", "", { "dependencies": { "@oxlint-flat-config/composer": "^0.3.1", "@tanstack/eslint-plugin-query": "^5.105.0", "eslint-plugin-playwright": "^2.12.1", "eslint-plugin-testing-library": "^7.16.2", "oxlint-flat-config": "^0.4.0", "shoemaker-oxlint-plugins": "0.2.0" }, "peerDependencies": { "@effect/tsgo": "0.63.0", "oxlint": "1.90.0", "oxlint-tsgolint": "7.0.2005" } }, "sha512-qtPNf3ZUxn1NN6cLNzET5LTDx+e6imFY0PPprO4QHrp741kpWXjntTq5tgWaXkcz29y3wVM40YLbM83whTkDKg=="],
 
-    "shoemaker-oxlint-plugins": ["shoemaker-oxlint-plugins@0.1.1", "", { "dependencies": { "@oxlint/plugins": "1.90.0" }, "peerDependencies": { "oxlint": "1.90.0" } }, "sha512-/2U2jAjnsfTBHlU006GHo9EO3avnsiHpk/4PIsoqyh9KNStKcUty2IpZ3aCYT8tjMw6Ujsp0mZdAWqz8FJKOmg=="],
+    "shoemaker-oxlint-plugins": ["shoemaker-oxlint-plugins@0.2.0", "", { "dependencies": { "@oxlint/plugins": "1.90.0" }, "peerDependencies": { "oxlint": "1.90.0" } }, "sha512-7i+WpC4DB71gqlvUy7mMhAjlZGXNu3by/svCqsIa/uXExObf3TNhxQnQ9Gh8tau0T/dyy1tuz1hOIdBaoI4Dyg=="],
 
-    "shoemaker-typescript-config": ["shoemaker-typescript-config@0.1.1", "", { "dependencies": { "@effect/language-service": "^0.87.5" } }, "sha512-zaV8bdVpm2M6+NImCmUK2N3pQ7E2buDzCCU0l1A32vqGlHMYRJ/E9TX9IDdZwtE9i06irWe0OBLdykL4HbgLaw=="],
+    "shoemaker-typescript-config": ["shoemaker-typescript-config@0.2.0", "", { "dependencies": { "@effect/language-service": "^0.87.5" } }, "sha512-SbS8M8u//m4s0UksSzPm9VrufUdva5vLGlgjYR0n+BwePm85YaIrkEiGzcRu3IUCzW4sFFW/ZQGB+3C4fO/TUQ=="],
 
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
 
