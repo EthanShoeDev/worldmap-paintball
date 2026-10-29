@@ -1,3 +1,44 @@
+diff --git a/lib/Auth/OAuthFlow.js b/lib/Auth/OAuthFlow.js
+index c59878051a06d209772ce23ebfbf2572c5cdd202..d6730c34752fa307cab3f3f5c8a835c3e80b23a6 100644
+--- a/lib/Auth/OAuthFlow.js
++++ b/lib/Auth/OAuthFlow.js
+@@ -1,6 +1,6 @@
+ import http from "node:http";
+ import * as Clock from "effect/Clock";
+-import * as Crypto from "effect/Crypto";
++import { Digest, SecureRandom } from "effect/crypto";
+ import * as Data from "effect/Data";
+ import * as Duration from "effect/Duration";
+ import * as Effect from "effect/Effect";
+@@ -120,21 +120,18 @@ export const OAuthCredentials = Schema.Struct({
+     expires: Schema.Number,
+     scopes: Schema.String.pipe(Schema.Array, Schema.mutable),
+ });
++// Effect 4.1 removed `effect/Crypto`; WebCrypto backs both primitives here.
+ const randomText = Effect.fn(function* (length) {
+-    const crypto = yield* Crypto.Crypto;
+-    const bytes = yield* crypto
+-        .randomBytes(length)
+-        .pipe(Effect.mapError((cause) => new OAuthCryptoError({ operation: "Secure random generation", cause })));
++    const random = yield* SecureRandom.SecureRandom;
++    const bytes = yield* random.randomBytes(length);
+     return Base64Url.encode(bytes);
+-});
++}, Effect.provide(SecureRandom.layerWebCrypto));
+ const generatePKCE = Effect.fn(function* (length = 96) {
+-    const crypto = yield* Crypto.Crypto;
++    const digest = yield* Digest.Digest;
+     const verifier = yield* randomText(length);
+-    const challenge = yield* crypto
+-        .digest("SHA-256", new TextEncoder().encode(verifier))
+-        .pipe(Effect.mapError((cause) => new OAuthCryptoError({ operation: "PKCE digest", cause })));
++    const challenge = yield* digest.digest(Digest.sha256, new TextEncoder().encode(verifier));
+     return { verifier, challenge: Base64Url.encode(challenge) };
+-});
++}, Effect.provide(Digest.layerWebCrypto));
+ const TokenResponse = Schema.Struct({
+     access_token: Schema.String,
+     refresh_token: Schema.optional(Schema.String),
 diff --git a/src/Auth/OAuthFlow.ts b/src/Auth/OAuthFlow.ts
 index 76e5bc195dde47a43a81200a788af0e824bc0b89..3fc34151463c6520c5f26f39ee21b99a5a173ea8 100644
 --- a/src/Auth/OAuthFlow.ts
