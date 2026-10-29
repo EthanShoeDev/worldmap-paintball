@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "oxc.oxc-vscode",
+    "mkhl.direnv",
+    "jnoortheen.nix-ide",
+    "effectful-tech.effect-vscode",
+    "vitest.explorer",
+    "oven.bun-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-playwright.playwright",
+    "vercel.turbo-vsc"
+  ]
+}

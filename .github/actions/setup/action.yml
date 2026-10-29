@@ -1,0 +1,20 @@
+name: Setup
+description: Install the pinned bun and the frozen lockfile.
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        # Keep in lockstep with package.json packageManager and flake.nix.
+        bun-version: 1.4.4
+    # --frozen-lockfile: CI must never mutate the lockfile. Retried because it
+    # reaches the npm registry, which fails independently of the diff.
+    - name: Install
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          bun install --frozen-lockfile && exit 0
+          echo "::warning::bun install attempt $attempt failed; retrying"
+          sleep $((attempt * 10))
+        done
+        exit 1

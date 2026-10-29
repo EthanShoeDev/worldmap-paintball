@@ -1,0 +1,30 @@
+# shoemaker:begin shoemaker
+node_modules
+dist
+.turbo
+.output
+.nitro
+.direnv
+*.tsbuildinfo
+.env.local
+.env.*.local
+coverage
+.vitest/
+tmp/
+*.log
+*.tgz
+.DS_Store
+# Dependency docs cloned for agents to read; keep them out of every hash.
+docs/cloned-repos-as-docs/
+# Agent settings and skills are tracked; local state is not.
+.claude/*
+!.claude/settings.json
+!.claude/skills
+result
+result-*
+dist/
+.tanstack/
+.alchemy/
+# shoemaker:end shoemaker
+
+# Project-specific ignores go below.

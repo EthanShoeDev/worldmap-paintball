@@ -1,0 +1,12 @@
+{
+  "extends": "shoemaker-typescript-config/tsconfig.base.json",
+  // Root config files default-export objects typed by tool packages, which
+  // declaration emit cannot name; nothing here is published.
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false
+  },
+  // Every package has its own tsconfig; this one covers the root-level
+  // files only (tool configs, and alchemy.run.ts with infra).
+  "include": ["*.ts"]
+}

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  NX_NO_CLOUD: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Affected detection diffs against the base commit.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      # Fails when generated tooling files were hand-edited or the repo is
+      # behind shoemaker.config.ts; fix with `shoemaker sync`.
+      - run: bunx shoemaker sync --check --allow-dirty
+      - run: bunx turbo run lint:check '//#lint:check:root' --affected --continue=dependencies-successful
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: bun run test

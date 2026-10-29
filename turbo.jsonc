@@ -1,0 +1,186 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "ui": "tui",
+  // Task `command` is experimental; it lets every package share one
+  // definition of a leaf command instead of a copied script.
+  "futureFlags": {
+    "experimentalTaskCommand": true
+  },
+  "globalPassThroughEnv": ["NIX_*", "TMPDIR"],
+  "globalEnv": ["APP_ENV", "PORT", "ALCHEMY_STAGE", "ALCHEMY_PROFILE"],
+  "globalDependencies": ["patches/**"],
+  // Task-inheritance pattern:
+  //   "^task"        -> run `task` in all DEPENDENCY packages first
+  //   "with": [...]  -> run these tasks in parallel for the SAME package
+  //   "//#task"      -> a root-only task (defined in root package.json)
+  // Leaf commands every package shares are task `command`s (argv, no shell),
+  // defined here once instead of copied into each package.json. A package script
+  // of the same name overrides one; `"command": null` in a package's turbo.jsonc
+  // opts the package out. Other leaf commands are package scripts. Aggregates
+  // (`lint`, `lint:check`) have neither: they only fan out, so turbo is never
+  // called from a script.
+  // Turbo uses shallow extend: a package overriding a task must copy the whole
+  // definition, it is not merged with the root one.
+  // The root depends on no internal package: turbo hashes the source of every
+  // internal package the root depends on into the global hash, so one such
+  // dependency misses cache for every task in the repo.
+  // @see https://turborepo.dev/docs/crafting-your-repository/caching#root-workspace-dependencies
+  "tasks": {
+    // Tests, typecheck and type-aware lint read workspace sources, not build
+    // output, so they depend on this no-op instead of `^build`: dependency
+    // hashes still flow in, nothing gets built.
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".output/**"],
+      "outputLogs": "new-only"
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "command": ["bun", "run", "tsc", "--noEmit"],
+      "dependsOn": ["^transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputLogs": "new-only"
+    },
+    "test": {
+      "command": ["bun", "run", "vitest", "run"],
+      "dependsOn": ["^transit"],
+      "outputLogs": "new-only"
+    },
+    "clean": {
+      "command": ["bun", "run", "rm", "-rf", "dist", ".turbo"],
+      "cache": false
+    },
+    // oxlint runs per package so an edit re-lints only the packages whose
+    // sources or type dependencies changed. Type-aware rules read dependency
+    // types, so the `^transit` edge carries their hashes.
+    "oxlint:check": {
+      "command": ["bun", "run", "oxlint", "-c", "../../oxlint.config.ts", "."],
+      "dependsOn": ["^transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "$TURBO_ROOT$/oxlint.config.ts"
+      ],
+      "outputLogs": "new-only"
+    },
+    "oxlint:fix": {
+      "command": [
+        "bun",
+        "run",
+        "oxlint",
+        "-c",
+        "../../oxlint.config.ts",
+        "--fix",
+        "."
+      ],
+      "dependsOn": ["^transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "$TURBO_ROOT$/oxlint.config.ts"
+      ],
+      "outputLogs": "new-only"
+    },
+    // `lint` and `lint:check` have no script on purpose: a task with a command
+    // stops its `with` tasks when it exits (turborepo#14163), which would cancel
+    // a package's typecheck as soon as its oxlint finished.
+    "lint:check": {
+      "with": ["oxlint:check", "typecheck", "//#lint:check:root"],
+      "outputLogs": "new-only"
+    },
+    "lint": {
+      "with": ["oxlint:fix", "typecheck", "//#lint:root"],
+      "outputLogs": "new-only"
+    },
+    // === Root-only tasks (bodies live in root package.json scripts) ===
+    // Repo-wide checkers. Packages reach them through `lint:check`; CI runs
+    // `//#lint:check:root` directly so they run even when no package changed.
+    "//#lint:check:root": {
+      "with": [
+        "//#typecheck",
+        "//#oxlint:check",
+        "//#oxfmt:check",
+        "//#jscpd:check",
+        "//#knip:check",
+        "//#catalog:check",
+        "//#effect-versions:check",
+        "//#nix:fmt:check"
+      ]
+    },
+    "//#lint:root": {
+      "with": [
+        "//#typecheck",
+        "//#oxlint:fix",
+        "//#oxfmt:fix",
+        "//#jscpd:check",
+        "//#knip:fix:danger",
+        "//#catalog:fix",
+        "//#effect-versions:check",
+        "//#nix:fmt:fix"
+      ]
+    },
+    // The root package checks only root-level files (configs); every package
+    // checks itself.
+    "//#typecheck": {
+      "inputs": [
+        "*.ts",
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/**"
+      ]
+    },
+    "//#oxlint:check": {
+      "inputs": [
+        "*.ts",
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/**"
+      ]
+    },
+    "//#oxlint:fix": {
+      "inputs": [
+        "*.ts",
+        "tsconfig.json",
+        "apps/api/package.json",
+        "apps/api/src/**"
+      ]
+    },
+    "//#oxfmt:check": {},
+    "//#oxfmt:fix": {
+      "cache": false
+    },
+    "//#jscpd:check": {},
+    // `knip:fix:danger` deletes what knip believes is dead; a missing entry in
+    // knip.ts makes it delete live code, so review its diff like a codemod.
+    "//#knip:check": {},
+    "//#knip:fix:danger": {
+      "cache": false
+    },
+    "//#catalog:check": {
+      "inputs": [
+        "package.json",
+        "apps/*/package.json",
+        "packages/*/package.json"
+      ]
+    },
+    "//#catalog:fix": {
+      "cache": false
+    },
+    "//#effect-versions:check": {
+      "inputs": ["bun.lock"]
+    },
+    "//#nix:fmt:check": {
+      "inputs": ["flake.nix", "flake.lock"]
+    },
+    "//#nix:fmt:fix": {
+      "cache": false
+    }
+  }
+}
