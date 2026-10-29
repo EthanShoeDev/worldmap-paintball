@@ -8,7 +8,7 @@ import {
   PlayerName,
   RejectReason,
   ServerMessage,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import { Effect, Schema, Stream } from 'effect';
 
 import { LobbyClient } from './lobby-client.ts';

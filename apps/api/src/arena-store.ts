@@ -1,8 +1,7 @@
 import type * as Cloudflare from '@alchemy.run/cloudflare';
+import { Arena } from '@worldmap-paintball/api-contract';
 import type { RuntimeContext } from 'alchemy/RuntimeContext';
 import { Context, Effect, Layer, Option, Schema } from 'effect';
-
-import { Arena } from './api.ts';
 
 // `bakedAt` is epoch milliseconds from `Clock`, so expiry is testable.
 export const StoredArena = Schema.Struct({

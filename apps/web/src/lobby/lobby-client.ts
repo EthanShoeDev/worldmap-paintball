@@ -7,7 +7,7 @@ import {
   ServerMessage,
   ServerMessageJson,
   type SignalPayload,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import {
   Context,
   Effect,

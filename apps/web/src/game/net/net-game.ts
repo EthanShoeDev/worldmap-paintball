@@ -1,6 +1,6 @@
 import '@tanstack/react-start/client-only';
 import { SnapshotInterpolation } from '@geckos.io/snapshot-interpolation';
-import type { Player, PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { Player, PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import {
   Array as Arr,
   Clock,

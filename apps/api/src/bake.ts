@@ -1,6 +1,5 @@
+import type { Arena } from '@worldmap-paintball/api-contract';
 import { Array as Arr } from 'effect';
-
-import type { Arena } from './api.ts';
 
 export interface LatLon {
   readonly lat: number;

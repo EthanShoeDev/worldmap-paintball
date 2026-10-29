@@ -1,7 +1,7 @@
 import * as Cloudflare from '@alchemy.run/cloudflare';
+import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import { Context, Duration, Effect, Layer } from 'effect';
 
-import { type Arena, MapDataError } from './api.ts';
 import { ArenaStore } from './arena-store.ts';
 import type { LatLon } from './bake.ts';
 import { ARENA_MAX_AGE, MapData } from './map-data.ts';

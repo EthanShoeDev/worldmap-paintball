@@ -1,7 +1,7 @@
 import type {
   Lobby,
   RejectReason,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import {
   Array as Arr,
   Cause,

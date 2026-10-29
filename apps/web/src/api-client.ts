@@ -1,5 +1,5 @@
 import { createIsomorphicFn } from '@tanstack/react-start';
-import { Api } from '@worldmap-paintball/api/api';
+import { Api } from '@worldmap-paintball/api-contract';
 import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';

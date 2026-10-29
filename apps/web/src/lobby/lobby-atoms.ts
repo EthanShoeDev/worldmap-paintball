@@ -4,7 +4,7 @@ import {
   ClientMessage,
   type Location,
   makeLobbyCode,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import { Effect, Layer, Option, Stream, SubscriptionRef } from 'effect';
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity';
 

@@ -1,4 +1,4 @@
-import type { Location } from '@worldmap-paintball/api/lobby/protocol';
+import type { Location } from '@worldmap-paintball/api-contract/lobby';
 import { Option } from 'effect';
 
 import { type LobbySnapshot, LobbyStates } from '../../lobby/lobby-machine.ts';

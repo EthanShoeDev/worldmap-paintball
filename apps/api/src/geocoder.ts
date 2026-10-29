@@ -1,3 +1,4 @@
+import { GeocoderError, type Place } from '@worldmap-paintball/api-contract';
 import { Array as Arr, Context, Effect, Layer, Schema } from 'effect';
 import {
   FetchHttpClient,
@@ -6,7 +7,6 @@ import {
   HttpClientResponse,
 } from 'effect/http';
 
-import { GeocoderError, type Place } from './api.ts';
 import { USER_AGENT } from './user-agent.ts';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';

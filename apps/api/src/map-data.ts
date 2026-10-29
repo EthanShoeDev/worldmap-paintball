@@ -1,4 +1,5 @@
 import type * as Cloudflare from '@alchemy.run/cloudflare';
+import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import {
   Cache,
   Clock,
@@ -18,7 +19,6 @@ import {
   HttpClientResponse,
 } from 'effect/http';
 
-import { type Arena, MapDataError } from './api.ts';
 import type { ArenaBaker } from './arena-baker.ts';
 import { ArenaStore } from './arena-store.ts';
 import { BAKE_VERSION, bakeArena, type LatLon } from './bake.ts';

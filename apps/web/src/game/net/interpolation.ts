@@ -2,7 +2,7 @@ import type {
   SnapshotInterpolation,
   Types,
 } from '@geckos.io/snapshot-interpolation';
-import { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Schema } from 'effect';
 
 import type { Vec3, WorldSnapshot } from './protocol.ts';

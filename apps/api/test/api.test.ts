@@ -1,9 +1,9 @@
 import { assert, layer } from '@effect/vitest';
+import { Api } from '@worldmap-paintball/api-contract';
 import { Effect, Layer } from 'effect';
 import { HttpServer } from 'effect/http';
 import { HttpApiTest } from 'effect/http-api';
 
-import { Api } from '../src/api.ts';
 import { GreetingsLive, HealthLive } from '../src/handlers.ts';
 
 const makeClient = HttpApiTest.groups(Api, ['health', 'greetings']);

@@ -2,7 +2,7 @@ import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Option } from 'effect';
 import { type RefObject, useRef } from 'react';
 import type { Group, Object3D } from 'three';

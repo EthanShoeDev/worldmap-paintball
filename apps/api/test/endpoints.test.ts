@@ -1,4 +1,5 @@
 import { assert, describe, it, layer } from '@effect/vitest';
+import { Api, Arena } from '@worldmap-paintball/api-contract';
 import { Effect, Layer, Schema } from 'effect';
 import {
   HttpRouter,
@@ -9,7 +10,6 @@ import {
 } from 'effect/http';
 import { HttpApiTest } from 'effect/http-api';
 
-import { Api, Arena } from '../src/api.ts';
 import { Geocoder } from '../src/geocoder.ts';
 import { ApiRoutes, ArenasLive, PlacesLive } from '../src/handlers.ts';
 import { LobbyRooms } from '../src/lobby/rooms.ts';

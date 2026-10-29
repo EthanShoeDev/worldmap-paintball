@@ -38,6 +38,7 @@
       "dependencies": {
         "@alchemy.run/cloudflare": "catalog:",
         "@effect/platform-bun": "catalog:",
+        "@worldmap-paintball/api-contract": "workspace:*",
         "alchemy": "catalog:",
         "effect": "catalog:",
       },
@@ -66,6 +67,7 @@
         "@tanstack/react-start": "catalog:",
         "@typeonce/effect-machine": "catalog:",
         "@worldmap-paintball/api": "workspace:*",
+        "@worldmap-paintball/api-contract": "workspace:*",
         "effect": "catalog:",
         "maplibre-gl": "catalog:",
         "react": "catalog:",
@@ -88,6 +90,21 @@
         "tailwindcss": "catalog:",
         "typescript": "catalog:",
         "vite": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
+    "packages/api-contract": {
+      "name": "@worldmap-paintball/api-contract",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
+        "bun-types": "catalog:",
+        "shoemaker-typescript-config": "catalog:",
+        "typescript": "catalog:",
         "vitest": "catalog:",
       },
     },
@@ -942,6 +959,8 @@
     "@vitest/spy": ["@vitest/spy@5.0.5", "", {}, "sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw=="],
 
     "@worldmap-paintball/api": ["@worldmap-paintball/api@workspace:apps/api"],
+
+    "@worldmap-paintball/api-contract": ["@worldmap-paintball/api-contract@workspace:packages/api-contract"],
 
     "@worldmap-paintball/web": ["@worldmap-paintball/web@workspace:apps/web"],
 

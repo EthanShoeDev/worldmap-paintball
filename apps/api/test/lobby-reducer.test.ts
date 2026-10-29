@@ -1,6 +1,4 @@
 import { assert, describe, it } from '@effect/vitest';
-import { Array, Effect, Exit, Schema } from 'effect';
-
 import {
   ClientMessage,
   ClientMessageJson,
@@ -9,7 +7,9 @@ import {
   MAX_PLAYERS,
   type PlayerId,
   type ServerMessage,
-} from '../src/lobby/protocol.ts';
+} from '@worldmap-paintball/api-contract/lobby';
+import { Array, Effect, Exit, Schema } from 'effect';
+
 import { disconnect, reduce, type Step } from '../src/lobby/reducer.ts';
 
 const Client = ClientMessage.cases;

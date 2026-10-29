@@ -21,6 +21,7 @@
     "@tanstack/react-start": "catalog:",
     "@typeonce/effect-machine": "catalog:",
     "@worldmap-paintball/api": "workspace:*",
+    "@worldmap-paintball/api-contract": "workspace:*",
     "effect": "catalog:",
     "maplibre-gl": "catalog:",
     "react": "catalog:",

@@ -5,7 +5,7 @@ import type {
   ClientMessage,
   Lobby,
   ServerMessage,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import {
   Array as Arr,
   Cause,

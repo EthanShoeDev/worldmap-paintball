@@ -1,8 +1,8 @@
 import { assert, describe, it } from '@effect/vitest';
+import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import { Duration, Effect, Fiber, Layer, Option } from 'effect';
 import { TestClock } from 'effect/testing';
 
-import { type Arena, MapDataError } from '../src/api.ts';
 import { ArenaStore, ArenaStoreError } from '../src/arena-store.ts';
 import { BAKE_VERSION, type LatLon } from '../src/bake.ts';
 import { arenaKey, HALF_SIZE, MapData } from '../src/map-data.ts';

@@ -1,4 +1,4 @@
-import { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Effect, flow, Option, Schema } from 'effect';
 
 export const Vec3 = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite]);

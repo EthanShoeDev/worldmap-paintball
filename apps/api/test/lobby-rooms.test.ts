@@ -1,8 +1,4 @@
 import { assert, describe, it } from '@effect/vitest';
-import { Array, Effect, Fiber, Predicate, Queue, Schema } from 'effect';
-import { HttpServerRequest } from 'effect/http';
-import { Socket } from 'effect/socket';
-
 import {
   ClientMessage,
   ClientMessageJson,
@@ -10,7 +6,11 @@ import {
   type PlayerId,
   type ServerMessage,
   ServerMessageJson,
-} from '../src/lobby/protocol.ts';
+} from '@worldmap-paintball/api-contract/lobby';
+import { Array, Effect, Fiber, Predicate, Queue, Schema } from 'effect';
+import { HttpServerRequest } from 'effect/http';
+import { Socket } from 'effect/socket';
+
 import { LobbyRooms } from '../src/lobby/rooms.ts';
 
 const Client = ClientMessage.cases;

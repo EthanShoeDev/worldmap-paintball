@@ -1,5 +1,3 @@
-import { Array, String } from 'effect';
-
 import {
   ClientMessage,
   type Lobby,
@@ -7,7 +5,8 @@ import {
   type PlayerId,
   type RejectReason,
   ServerMessage,
-} from './protocol.ts';
+} from '@worldmap-paintball/api-contract/lobby';
+import { Array, String } from 'effect';
 
 export interface Envelope {
   readonly to: PlayerId;

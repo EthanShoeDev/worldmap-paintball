@@ -1,4 +1,4 @@
-import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr } from 'effect';
 
 import { fireRange, respawnDelayMs, spawnHeight } from '../tuning.ts';

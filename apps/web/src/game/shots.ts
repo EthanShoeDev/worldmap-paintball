@@ -1,5 +1,5 @@
 import '@tanstack/react-start/client-only';
-import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { type Object3D, Raycaster, Vector3 } from 'three';
 
 import { nearestPlayerHit } from './net/hit-test.ts';

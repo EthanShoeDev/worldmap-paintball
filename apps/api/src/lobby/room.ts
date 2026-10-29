@@ -1,15 +1,15 @@
 import * as Cloudflare from '@alchemy.run/cloudflare';
-import { Effect, Option, Predicate, Schema } from 'effect';
-import { SecureRandom } from 'effect/crypto';
-import { HttpServerRequest, HttpServerResponse } from 'effect/http';
-
 import {
   ClientMessageJson,
   Lobby,
   type PlayerId,
   ServerMessage,
   ServerMessageJson,
-} from './protocol.ts';
+} from '@worldmap-paintball/api-contract/lobby';
+import { Effect, Option, Predicate, Schema } from 'effect';
+import { SecureRandom } from 'effect/crypto';
+import { HttpServerRequest, HttpServerResponse } from 'effect/http';
+
 import { disconnect, reduce, type Step } from './reducer.ts';
 
 const LOBBY_KEY = 'lobby';

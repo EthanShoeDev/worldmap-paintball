@@ -1,4 +1,4 @@
-import type { Lobby, PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { Lobby, PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import {
   Context,
   type Effect,

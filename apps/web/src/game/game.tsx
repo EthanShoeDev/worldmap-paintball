@@ -3,7 +3,7 @@ import { useAtomSet, useAtomSuspense, useAtomValue } from '@effect/atom-react';
 import { Bvh, Sky } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
-import type { Arena } from '@worldmap-paintball/api/api';
+import type { Arena } from '@worldmap-paintball/api-contract';
 import { Array as Arr } from 'effect';
 import { type ReactNode, Suspense, useRef } from 'react';
 import type { Group } from 'three';

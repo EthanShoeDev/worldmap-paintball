@@ -1,7 +1,7 @@
+import { LobbyCode } from '@worldmap-paintball/api-contract/lobby';
 import { Effect, Layer, Schema } from 'effect';
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
 
-import { LobbyCode } from './protocol.ts';
 import { LobbyRooms } from './rooms.ts';
 
 const LobbyPath = Schema.Struct({ code: LobbyCode });

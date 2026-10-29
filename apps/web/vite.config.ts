@@ -26,7 +26,9 @@ export default defineConfig({
         // Added to the defaults (*.server.* files, Start's server module).
         client: {
           specifiers: [
-            '@worldmap-paintball/api/handlers',
+            // The browser talks to the API only through @worldmap-paintball/api-contract.
+            '@worldmap-paintball/api',
+            '@worldmap-paintball/api/**',
             '@alchemy.run/cloudflare',
             'alchemy',
             '@effect/platform-bun',

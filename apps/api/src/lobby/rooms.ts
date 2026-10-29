@@ -1,4 +1,11 @@
 import type * as Cloudflare from '@alchemy.run/cloudflare';
+import {
+  ClientMessageJson,
+  type Lobby,
+  type PlayerId,
+  ServerMessage,
+  ServerMessageJson,
+} from '@worldmap-paintball/api-contract/lobby';
 import { Context, Effect, Layer, Option, Schema, Semaphore } from 'effect';
 import { SecureRandom } from 'effect/crypto';
 import {
@@ -8,13 +15,6 @@ import {
 } from 'effect/http';
 import { Socket } from 'effect/socket';
 
-import {
-  ClientMessageJson,
-  type Lobby,
-  type PlayerId,
-  ServerMessage,
-  ServerMessageJson,
-} from './protocol.ts';
 import { disconnect, reduce, type Step } from './reducer.ts';
 import type { LobbyRoom } from './room.ts';
 

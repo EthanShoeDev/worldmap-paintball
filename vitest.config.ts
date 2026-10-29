@@ -5,6 +5,6 @@ import { defineConfig } from 'vitest/config';
 // runs, run the same projects one package at a time, cached.
 export default defineConfig({
   test: {
-    projects: ['apps/web', 'apps/api'],
+    projects: ['apps/web', 'apps/api', 'packages/api-contract'],
   },
 });

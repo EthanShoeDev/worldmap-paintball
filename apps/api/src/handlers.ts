@@ -1,7 +1,7 @@
+import { Api } from '@worldmap-paintball/api-contract';
 import { Effect, Layer } from 'effect';
 import { HttpApiBuilder } from 'effect/http-api';
 
-import { Api } from './api.ts';
 import { Geocoder } from './geocoder.ts';
 import { LobbyRooms } from './lobby/rooms.ts';
 import { LobbyRoutes } from './lobby/routes.ts';

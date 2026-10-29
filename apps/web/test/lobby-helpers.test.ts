@@ -1,5 +1,5 @@
 import { assert, describe, it } from '@effect/vitest';
-import type { Lobby } from '@worldmap-paintball/api/lobby/protocol';
+import type { Lobby } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, String as Str } from 'effect';
 
 import {

@@ -5,7 +5,7 @@ import {
   type Lobby,
   MAX_PLAYERS,
   type PlayerId,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Option } from 'effect';
 import { AsyncResult } from 'effect/reactivity';
 import { useEffect, useState } from 'react';

@@ -4,7 +4,7 @@ import {
   type Player,
   type PlayerId,
   SignalPayload,
-} from '@worldmap-paintball/api/lobby/protocol';
+} from '@worldmap-paintball/api-contract/lobby';
 import {
   Array,
   Clock,

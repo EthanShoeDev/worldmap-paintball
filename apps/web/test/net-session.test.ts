@@ -1,6 +1,6 @@
 import { assert, describe, it } from '@effect/vitest';
 import { MachineTest } from '@typeonce/effect-machine/testing';
-import type { Lobby } from '@worldmap-paintball/api/lobby/protocol';
+import type { Lobby } from '@worldmap-paintball/api-contract/lobby';
 import { Effect } from 'effect';
 
 import { lobbyMatchCode, matchStatus } from '../src/game/net/session.ts';

@@ -1,5 +1,5 @@
 {
-  "cliVersion": "0.2.0",
+  "cliVersion": "0.2.2",
   "files": {
     ".changeset/config.json": {
       "sha256": "9063b5171c2ffd19e1816cd601e09b10c17136f673e9fc71256b6cc67eaabe16",
@@ -62,19 +62,19 @@
       "strategy": "seed"
     },
     "apps/api/package.json": {
-      "sha256": "c98e41b764cd2e12228184f009bd2ca3447581e75765a0a4d5ac9c3cac66bafa",
+      "sha256": "071fd78e0da6f2f61923d36b5f0d5af2bc0fd813b771228fcb6f81c2ede30fe9",
       "strategy": "json-merge",
       "owned": [
         "/name",
         "/version",
         "/private",
         "/type",
-        "/exports/.~1api",
         "/exports/.~1handlers",
         "/exports/.~1package.json",
         "/scripts/dev",
         "/scripts/build",
         "/scripts/start",
+        "/dependencies/@worldmap-paintball~1api-contract",
         "/dependencies/@effect~1platform-bun",
         "/dependencies/effect",
         "/devDependencies/@effect~1vitest",
@@ -88,10 +88,6 @@
     },
     "apps/api/README.md": {
       "sha256": "82d2cd9402a11a249050307be8a2d11db0c2cb268bd4fe212e3111f43dce34ed",
-      "strategy": "seed"
-    },
-    "apps/api/src/api.ts": {
-      "sha256": "a919cc2a9822a0f32015713c3b855ab857671c0fbf5a7b72880f9dd8c02fd5ee",
       "strategy": "seed"
     },
     "apps/api/src/bin.ts": {
@@ -123,7 +119,7 @@
       "strategy": "owned"
     },
     "apps/web/package.json": {
-      "sha256": "8cf0d53686d4eed4e58027137835f09e5e980b3defaf4c59c812235f5acefb91",
+      "sha256": "d8bc71f6852f26f14fffe0c7a41bf8ec5110e2dc391ef23374931b0e00909aa0",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -135,6 +131,7 @@
         "/scripts/start",
         "/scripts/clean",
         "/dependencies/@worldmap-paintball~1api",
+        "/dependencies/@worldmap-paintball~1api-contract",
         "/dependencies/@tanstack~1react-router",
         "/dependencies/@tanstack~1react-start",
         "/dependencies/effect",
@@ -251,7 +248,7 @@
       ]
     },
     "package.json": {
-      "sha256": "f5b94730d4994cfc4ed8b72d873fad1516de08282d0f7d3601fafa97b6e34fa1",
+      "sha256": "dafe1bfd37d42e9a4fa7022cde6fa01a8ff0d71a1359a6e46306524c63fa88f9",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -385,6 +382,45 @@
         "/packageManager"
       ]
     },
+    "packages/api-contract/package.json": {
+      "sha256": "2dea28848f04d781ccbd4866f1c79f369a5113bbf389f3b08210bc4c084095a4",
+      "strategy": "json-merge",
+      "owned": [
+        "/name",
+        "/version",
+        "/private",
+        "/type",
+        "/exports/.",
+        "/exports/.~1package.json",
+        "/dependencies/effect",
+        "/devDependencies/@effect~1vitest",
+        "/devDependencies/@types~1node",
+        "/devDependencies/bun-types",
+        "/devDependencies/shoemaker-typescript-config",
+        "/devDependencies/typescript",
+        "/devDependencies/vitest"
+      ]
+    },
+    "packages/api-contract/README.md": {
+      "sha256": "8bb7b3ae29199481261efc6e95a4ebbcf068503edbd1d5382d9b9e3aa951ac84",
+      "strategy": "seed"
+    },
+    "packages/api-contract/src/index.ts": {
+      "sha256": "8182b3e42f5709af3c1eb2e53ed61ee88322459d389300e6b8e80463e4591d4e",
+      "strategy": "seed"
+    },
+    "packages/api-contract/test/index.test.ts": {
+      "sha256": "4d228e21df373fdd3b71ee9cb4dc1234a9949aa801abe51bea1db5665c66da55",
+      "strategy": "seed"
+    },
+    "packages/api-contract/tsconfig.json": {
+      "sha256": "a1d96c953a1f980733df8430780e79f28a7ee033dec0162df7f4109e293e1133",
+      "strategy": "owned"
+    },
+    "packages/api-contract/vitest.config.ts": {
+      "sha256": "589478b483d50e3fa4049afbd14ffd4164c56b95d3ed2aa10d7375eb3d67faa9",
+      "strategy": "owned"
+    },
     "README.md": {
       "sha256": "48079c025faa7be8d3ccc1d0c14e3e8ee649005445b0f0de762bccc9aedaa2ba",
       "strategy": "seed"
@@ -394,11 +430,11 @@
       "strategy": "owned"
     },
     "turbo.jsonc": {
-      "sha256": "5c45dad1acc2c0ca34cff2c0bdad7f250ea8529d14722af7fd3586f701eda459",
+      "sha256": "46b2765c24e94b410df0608ebadb68d446c2139877c1494241b10799222c3e6a",
       "strategy": "owned"
     },
     "vitest.config.ts": {
-      "sha256": "174a63e14896709e294762927a977f7a9edb0e449cf2d47b82a57a567bcad641",
+      "sha256": "02442bc3e6d21906156237a510a9a2228c30f395a3795b781e667f28b558080d",
       "strategy": "owned"
     }
   }

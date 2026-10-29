@@ -1,4 +1,4 @@
-import type { Arena } from '@worldmap-paintball/api/api';
+import type { Arena } from '@worldmap-paintball/api-contract';
 import { Array as Arr, Order } from 'effect';
 import {
   BufferGeometry,

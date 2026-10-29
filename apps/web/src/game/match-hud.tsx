@@ -1,6 +1,6 @@
 import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
-import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
+import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Option, Order } from 'effect';
 
 import { inLobbyAtom } from '../lobby/lobby-atoms.ts';

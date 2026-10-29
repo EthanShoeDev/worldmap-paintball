@@ -1,6 +1,6 @@
 import '@tanstack/react-start/client-only';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
-import type { Arena } from '@worldmap-paintball/api/api';
+import type { Arena } from '@worldmap-paintball/api-contract';
 import { Record } from 'effect';
 import { useEffect, useMemo } from 'react';
 import type { BufferGeometry } from 'three';
