@@ -4,24 +4,27 @@ import { Vector3 } from 'three';
 
 import {
   buildingsGeometry,
-  roadsGeometry,
+  groundGeometry,
   spawnPoints,
 } from '../src/game/arena-meshes.ts';
 
+const building = {
+  footprint: [
+    [0, 0],
+    [10, 0],
+    [10, 20],
+    [0, 20],
+    [0, 0],
+  ] as const,
+  height: 5,
+};
+
 describe('buildingsGeometry', () => {
   it('extrudes footprints upwards in arena x/z', () => {
-    const geometry = buildingsGeometry([
-      {
-        footprint: [
-          [0, 0],
-          [10, 0],
-          [10, 20],
-          [0, 20],
-          [0, 0],
-        ],
-        height: 5,
-      },
-    ]);
+    const geometry = buildingsGeometry({
+      halfSize: 150,
+      buildings: [building],
+    });
     assert.isDefined(geometry);
     geometry?.computeBoundingBox();
     const box = geometry?.boundingBox;
@@ -34,48 +37,60 @@ describe('buildingsGeometry', () => {
     }
   });
 
+  it('stands on the lowest ground under the footprint', () => {
+    // A 3×3 grid over ±10 m: the box covers the south-east quarter's nodes.
+    const geometry = buildingsGeometry({
+      halfSize: 10,
+      buildings: [building],
+      terrain: { size: 3, heights: [9, 9, 9, 9, 4, 6, 9, 7, 5] },
+    });
+    geometry?.computeBoundingBox();
+    assert.closeTo(geometry?.boundingBox?.min.y ?? Number.NaN, 4, 1e-9);
+    assert.closeTo(geometry?.boundingBox?.max.y ?? Number.NaN, 9, 1e-9);
+  });
+
   it('skips degenerate footprints', () => {
     assert.isUndefined(
-      buildingsGeometry([
-        {
-          footprint: [
-            [0, 0],
-            [1, 1],
-          ],
-          height: 3,
-        },
-      ]),
+      buildingsGeometry({
+        halfSize: 150,
+        buildings: [
+          {
+            footprint: [
+              [0, 0],
+              [1, 1],
+            ],
+            height: 3,
+          },
+        ],
+      }),
     );
   });
 });
 
-describe('roadsGeometry', () => {
-  it('builds an upward-facing ribbon of the road width', () => {
-    const geometry = roadsGeometry(
-      [
-        {
-          path: [
-            [0, 0],
-            [10, 0],
-          ],
-          width: 4,
-        },
-      ],
-      0.1,
+describe('groundGeometry', () => {
+  it('lays the terrain grid out from the north-west, row by row', () => {
+    const geometry = groundGeometry({
+      halfSize: 10,
+      terrain: { size: 2, heights: [1, 2, 3, 4] },
+    });
+    const position = geometry.getAttribute('position');
+    const vertices = Arr.makeBy(position.count, (i) =>
+      new Vector3().fromBufferAttribute(position, i).toArray(),
     );
-    const position = geometry?.getAttribute('position');
-    const index = geometry?.getIndex();
-    if (position === undefined || !index) {
-      return assert.fail('missing attributes');
-    }
-    const zs = Arr.makeBy(position.count, (i) => position.getZ(i));
-    assert.deepStrictEqual(zs, [2, -2, 2, -2]);
+    assert.deepStrictEqual(vertices, [
+      [-10, 1, -10],
+      [10, 2, -10],
+      [-10, 3, 10],
+      [10, 4, 10],
+    ]);
+  });
 
-    const vertex = (i: number) =>
-      new Vector3().fromBufferAttribute(position, index.getX(i));
-    const [a, b, c] = [vertex(0), vertex(1), vertex(2)];
-    const normal = b.clone().sub(a).cross(c.clone().sub(a));
-    assert.isAbove(normal.y, 0);
+  it('is flat without terrain', () => {
+    const position = groundGeometry({ halfSize: 10 }).getAttribute('position');
+    assert.deepStrictEqual(
+      Arr.makeBy(position.count, (i) => position.getY(i)),
+      [0, 0, 0, 0],
+    );
   });
 });
 

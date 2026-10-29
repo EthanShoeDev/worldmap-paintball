@@ -1,9 +1,9 @@
 import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
+import { Link } from '@tanstack/react-router';
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Option, Order } from 'effect';
 
-import { inLobbyAtom } from '../lobby/lobby-atoms.ts';
 import {
   colorOf,
   endMatchAtom,
@@ -27,13 +27,7 @@ export const Scoreboard = ({
   readonly view: MatchView;
   readonly scores: ReadonlyArray<Score>;
 }) => {
-  const inLobby = useAtomValue(inLobbyAtom);
-  const present = new Set(
-    Option.match(inLobby, {
-      onNone: () => [],
-      onSome: ({ lobby }) => Arr.map(lobby.players, (player) => player.id),
-    }),
-  );
+  const present = new Set(view.present);
   const rows = Arr.sort(
     Arr.map(view.roster, (player) => {
       const score = Option.getOrUndefined(
@@ -79,7 +73,14 @@ export const Scoreboard = ({
   );
 };
 
-export const MatchHud = ({ net }: { readonly net: Net }) => {
+export const MatchHud = ({
+  net,
+  practice,
+}: {
+  readonly net: Net;
+  // No lobby to end the match with, so it offers a way out instead.
+  readonly practice: boolean;
+}) => {
   const view = useAtomValue(matchViewAtom);
   const endMatch = useAtomSet(endMatchAtom);
   const nameOf = (id: PlayerId) =>
@@ -91,7 +92,15 @@ export const MatchHud = ({ net }: { readonly net: Net }) => {
     <>
       <div className='absolute top-3 left-3 rounded bg-black/50 px-3 py-2'>
         <Scoreboard view={view} scores={view.scores} />
-        {net.isHost && (
+        {practice && (
+          <Link
+            className='pointer-events-auto mt-2 block w-full rounded bg-slate-600 px-3 py-1 text-center text-sm font-semibold hover:bg-slate-500'
+            to='/'
+          >
+            Leave
+          </Link>
+        )}
+        {net.isHost && !practice && (
           <button
             className='pointer-events-auto mt-2 w-full rounded bg-rose-600 px-3 py-1 text-sm font-semibold hover:bg-rose-500'
             type='button'

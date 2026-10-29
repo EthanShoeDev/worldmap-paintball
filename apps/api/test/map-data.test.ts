@@ -1,8 +1,10 @@
 import { assert, describe, it } from '@effect/vitest';
+import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import { Array as Arr, Effect, Layer } from 'effect';
 import { HttpClient, HttpClientResponse } from 'effect/http';
 
-import { MapData } from '../src/map-data.ts';
+import { Elevation, ElevationError } from '../src/elevation.ts';
+import { HALF_SIZE, MapData } from '../src/map-data.ts';
 
 const overpassJson = {
   elements: [
@@ -85,6 +87,160 @@ describe('MapData.layerOverpass', () => {
     Effect.gen(function* () {
       const error = yield* arena(
         () => new Response('bad query', { status: 400 }),
+      ).pipe(Effect.flip);
+      assert.strictEqual(error._tag, 'MapDataError');
+    }),
+  );
+});
+
+const arenaOf = (buildings: number): Arena => ({
+  lat: 0,
+  lon: 0,
+  halfSize: HALF_SIZE,
+  buildings: Array.from({ length: buildings }, () => ({
+    footprint: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ],
+    height: 8,
+  })),
+  roads: [],
+  areas: [],
+});
+
+const source = (result: Effect.Effect<Arena, MapDataError>) => {
+  const calls: Array<unknown> = [];
+  const layer = Layer.succeed(
+    MapData,
+    MapData.of({
+      arena: (center) =>
+        Effect.suspend(() => {
+          calls.push(center);
+          return result;
+        }),
+    }),
+  );
+  return { calls, layer };
+};
+
+const serving = (buildings: number) =>
+  source(Effect.succeed(arenaOf(buildings)));
+
+const failing = (message: string) =>
+  source(Effect.fail(MapDataError.make({ message })));
+
+const arenaFrom = (layer: Layer.Layer<MapData>) =>
+  MapData.use((mapData) => mapData.arena({ lat: 0, lon: 0 })).pipe(
+    Effect.provide(layer),
+  );
+
+describe('MapData.layerFallback', () => {
+  it.effect('serves the primary source without asking the fallback', () =>
+    Effect.gen(function* () {
+      const fallback = serving(2);
+      const result = yield* arenaFrom(
+        MapData.layerFallback(serving(1).layer, fallback.layer),
+      );
+      assert.strictEqual(result.buildings.length, 1);
+      assert.strictEqual(fallback.calls.length, 0);
+    }),
+  );
+
+  it.effect('uses the fallback when the primary fails', () =>
+    Effect.gen(function* () {
+      const result = yield* arenaFrom(
+        MapData.layerFallback(
+          failing('OpenFreeMap: 502').layer,
+          serving(2).layer,
+        ),
+      );
+      assert.strictEqual(result.buildings.length, 2);
+    }),
+  );
+
+  it.effect('reports both failures', () =>
+    Effect.gen(function* () {
+      const error = yield* arenaFrom(
+        MapData.layerFallback(
+          failing('OpenFreeMap: 502').layer,
+          failing('Overpass: 521').layer,
+        ),
+      ).pipe(Effect.flip);
+      assert.strictEqual(error.message, 'OpenFreeMap: 502; Overpass: 521');
+    }),
+  );
+
+  it.effect('falls back from OpenFreeMap to Overpass over HTTP', () =>
+    Effect.gen(function* () {
+      const hosts: Array<string> = [];
+      const result = yield* arenaFrom(
+        MapData.layerFallback(
+          MapData.layerOpenFreeMap,
+          MapData.layerOverpass,
+        ).pipe(
+          Layer.provide(
+            fakeClient((request) => {
+              const { host } = new URL(request.url);
+              hosts.push(host);
+              return host === 'tiles.openfreemap.org'
+                ? new Response('gone', { status: 404 })
+                : Response.json(overpassJson);
+            }),
+          ),
+        ),
+      );
+      assert.deepStrictEqual(hosts, [
+        'tiles.openfreemap.org',
+        'overpass-api.de',
+      ]);
+      assert.strictEqual(result.buildings.length, 1);
+    }),
+  );
+});
+
+const elevation = (terrain: Arena['terrain'] | undefined) =>
+  Layer.succeed(
+    Elevation,
+    Elevation.of({
+      terrain: () =>
+        terrain === undefined
+          ? Effect.fail(ElevationError.make({ message: 'Terrarium: 403' }))
+          : Effect.succeed(terrain),
+    }),
+  );
+
+const withTerrain = (
+  upstream: Layer.Layer<MapData>,
+  terrain: Arena['terrain'] | undefined,
+) =>
+  arenaFrom(
+    MapData.layerTerrain.pipe(Layer.provide([upstream, elevation(terrain)])),
+  );
+
+describe('MapData.layerTerrain', () => {
+  const flat = { size: 2, heights: [0, 0, 0, 0] };
+
+  it.effect('adds the terrain to the arena', () =>
+    Effect.gen(function* () {
+      const result = yield* withTerrain(serving(1).layer, flat);
+      assert.deepStrictEqual(result, { ...arenaOf(1), terrain: flat });
+    }),
+  );
+
+  it.effect('bakes a flat arena when terrain fails', () =>
+    Effect.gen(function* () {
+      const result = yield* withTerrain(serving(1).layer, undefined);
+      assert.deepStrictEqual(result, arenaOf(1));
+      assert.isFalse('terrain' in result);
+    }),
+  );
+
+  it.effect('still fails when the geometry fails', () =>
+    Effect.gen(function* () {
+      const error = yield* withTerrain(
+        failing('OpenFreeMap: 502').layer,
+        flat,
       ).pipe(Effect.flip);
       assert.strictEqual(error._tag, 'MapDataError');
     }),

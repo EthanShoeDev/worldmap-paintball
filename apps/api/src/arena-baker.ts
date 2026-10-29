@@ -12,8 +12,8 @@ interface ArenaBakerShape {
 
 // One object per arena cache key (`MapData.layerDurableObject` names it), so
 // every Worker isolate in every colo funnels a given arena through a single
-// instance: its in-memory Cache makes concurrent misses share one Overpass
-// query, and R2 keeps the result for later instances.
+// instance: its in-memory Cache makes concurrent misses share one bake, and
+// R2 keeps the result for later instances.
 export class ArenaBaker extends Cloudflare.DurableObject<
   ArenaBaker,
   ArenaBakerShape

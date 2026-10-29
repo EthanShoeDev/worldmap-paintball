@@ -8,6 +8,7 @@ import { Result, Schema } from 'effect';
 import { lazy, Suspense } from 'react';
 
 import { PlayError } from '../components/play-notice.tsx';
+import { maxPracticeBots } from '../game/tuning.ts';
 import { Coordinates } from '../location/coordinates.ts';
 
 const PlayAt = lazy(() =>
@@ -17,7 +18,18 @@ const PlayAt = lazy(() =>
   })),
 );
 
-const decodeCoordinates = Schema.decodeUnknownResult(Coordinates);
+const PlaySearch = Schema.Struct({
+  ...Coordinates.fields,
+  // Optional, not optionalKey: rawSearch passes a missing value as undefined.
+  bots: Schema.optional(
+    Schema.Int.check(
+      Schema.isBetween({ minimum: 0, maximum: maxPracticeBots }),
+    ),
+  ),
+});
+type PlaySearch = typeof PlaySearch.Type;
+
+const decodeSearch = Schema.decodeUnknownResult(PlaySearch);
 
 // Failing here would make SSR answer 500 instead of rendering the error UI,
 // and the router merges whatever this returns back into the URL, so it passes
@@ -25,24 +37,29 @@ const decodeCoordinates = Schema.decodeUnknownResult(Coordinates);
 const rawSearch = ({
   lat,
   lon,
-}: Coordinates & SearchSchemaInput): Readonly<
-  Record<keyof Coordinates, unknown>
-> => ({ lat, lon });
+  bots,
+}: PlaySearch & SearchSchemaInput): Readonly<
+  Record<keyof PlaySearch, unknown>
+> => ({ lat, lon, bots });
 
 const RouteError = ({ error }: ErrorComponentProps) => (
   <PlayError error={error} />
 );
 
 const Play = () => {
-  const coordinates = decodeCoordinates(Route.useSearch());
-  if (Result.isFailure(coordinates)) {
-    return <PlayError error={new Error(coordinates.failure.message)} />;
+  const search = decodeSearch(Route.useSearch());
+  if (Result.isFailure(search)) {
+    return <PlayError error={new Error(search.failure.message)} />;
   }
-  const { lat, lon } = coordinates.success;
+  const { lat, lon, bots = 0 } = search.success;
   return (
     <ClientOnly>
       <Suspense>
-        <PlayAt key={`${lat},${lon}`} coordinates={coordinates.success} />
+        <PlayAt
+          key={`${lat},${lon},${bots}`}
+          coordinates={{ lat, lon }}
+          bots={bots}
+        />
       </Suspense>
     </ClientOnly>
   );

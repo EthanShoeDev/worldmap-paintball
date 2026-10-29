@@ -45,10 +45,6 @@ export const lobbyStateAtom: Atom.Atom<Option.Option<LobbySnapshot>> = settled(
   Atom.map(lobbyMachineAtom.result, AsyncResult.map(Option.some)),
 );
 
-export const inLobbyAtom = settled(
-  AtomMachine.select(lobbyMachineAtom, 'Session.InLobby'),
-);
-
 export const sendLobbyEventAtom: Atom.Writable<unknown, LobbyEvent> =
   lobbyMachineAtom.send;
 

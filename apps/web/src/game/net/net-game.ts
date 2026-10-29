@@ -1,5 +1,6 @@
 import '@tanstack/react-start/client-only';
 import { SnapshotInterpolation } from '@geckos.io/snapshot-interpolation';
+import type { Arena } from '@worldmap-paintball/api-contract';
 import type { Player, PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import {
   Array as Arr,
@@ -12,6 +13,7 @@ import {
   Ref,
   Schedule,
   Stream,
+  String as Str,
   SubscriptionRef,
 } from 'effect';
 import { Atom, AtomRegistry } from 'effect/reactivity';
@@ -26,6 +28,7 @@ import { LobbyClient } from '../../lobby/lobby-client.ts';
 import { type PeerMessage, PeerNetwork } from '../../lobby/peer-network.ts';
 import type { Coordinates } from '../../location/coordinates.ts';
 import { spawnPoints } from '../arena-meshes.ts';
+import { heightAt } from '../terrain.ts';
 import {
   interpolationBufferMs,
   netTickMs,
@@ -82,6 +85,8 @@ export interface MatchView {
   readonly you: PlayerId | undefined;
   // Lobby order when the match started; player colours follow it.
   readonly roster: ReadonlyArray<Player>;
+  // Who is still in the match, from the network's players.
+  readonly present: ReadonlyArray<PlayerId>;
   readonly scores: ReadonlyArray<Score>;
   readonly eliminatedBy: PlayerId | undefined;
   readonly respawnIn: number | undefined;
@@ -92,6 +97,7 @@ export interface MatchView {
 export const idleMatchView: MatchView = {
   you: undefined,
   roster: [],
+  present: [],
   scores: [],
   eliminatedBy: undefined,
   respawnIn: undefined,
@@ -103,6 +109,25 @@ export const idleMatchView: MatchView = {
 export const matchViewAtom = Atom.make(idleMatchView).pipe(Atom.keepAlive);
 
 type ShotEvent = typeof Net.Shot.Type;
+
+// A player this browser simulates: `you`, plus the bots on the host.
+interface Local {
+  state: PlayerState | undefined;
+  alive: boolean;
+  // A host-chosen respawn point to teleport to; taken once.
+  respawnTo: Vec3 | undefined;
+}
+
+// Phase 2 moves this onto the lobby's Player as a `bot` flag.
+const botPrefix = 'bot-';
+
+export const isBot = (player: Player) => Str.startsWith(botPrefix)(player.id);
+
+export const botPlayer = (n: number) => ({
+  id: `${botPrefix}${n}`,
+  name: `Bot ${n}`,
+  ready: true,
+});
 
 const feedLength = 4;
 
@@ -125,7 +150,10 @@ export class NetGame extends Context.Service<
     readonly isHost: boolean;
     // Lobby order when the match started; player colours follow it.
     readonly roster: ReadonlyArray<Player>;
-    readonly spawn: Vec3;
+    // Players the host simulates in this browser; empty on clients.
+    readonly bots: ReadonlyArray<PlayerId>;
+    readonly controls: (id: PlayerId) => LocalControls;
+    readonly spawnOf: (id: PlayerId) => Vec3;
     // Interpolated poses of living remote players; call once per frame.
     readonly updateRemotes: () => ReadonlyMap<PlayerId, Pose>;
     // Living players' centres as last rendered, the local one included.
@@ -135,6 +163,7 @@ export class NetGame extends Context.Service<
     // Other players' shots since the last call, to paint their splats.
     readonly takeShots: () => ReadonlyArray<ShotEvent>;
     readonly fire: (
+      shooter: PlayerId,
       origin: Vec3,
       dir: Vec3,
       hit: PlayerHit | undefined,
@@ -155,10 +184,17 @@ export class NetGame extends Context.Service<
         const matchRef = yield* Ref.make(
           makeMatch(Arr.map(roster, (player) => player.id)),
         );
+        const bots = isHost
+          ? Arr.flatMap(roster, (player) => (isBot(player) ? [player.id] : []))
+          : [];
         // Shared with the render loop, which must not wait on fibers.
-        let localState: PlayerState | undefined;
-        let alive = true;
-        let respawnTo: Vec3 | undefined;
+        const locals = new Map<PlayerId, Local>(
+          Arr.map([you, ...bots], (id) => [
+            id,
+            { state: undefined, alive: true, respawnTo: undefined },
+          ]),
+        );
+        const yours = locals.get(you);
         let respawnAt: number | undefined;
         let world: WorldSnapshot | undefined;
         let remotes: ReadonlyMap<PlayerId, Pose> = new Map();
@@ -166,7 +202,16 @@ export class NetGame extends Context.Service<
         let feedId = 0;
         let snapshotId = 0;
 
-        registry.set(matchViewAtom, { ...idleMatchView, you, roster });
+        const presentNow = Arr.map(
+          yield* SubscriptionRef.get(network.players),
+          (player) => player.id,
+        );
+        registry.set(matchViewAtom, {
+          ...idleMatchView,
+          you,
+          roster,
+          present: presentNow,
+        });
         const updateView = (f: (view: MatchView) => MatchView) =>
           Effect.sync(() => registry.update(matchViewAtom, f));
 
@@ -180,11 +225,10 @@ export class NetGame extends Context.Service<
             shooter: event.shooter,
             target: event.target,
           };
+          const local = locals.get(event.target);
+          if (local) local.alive = false;
           const mine = event.target === you;
-          if (mine) {
-            alive = false;
-            respawnAt = now + event.respawnInMs;
-          }
+          if (mine) respawnAt = now + event.respawnInMs;
           yield* updateView((view) => ({
             ...view,
             feed: Arr.takeRight([...view.feed, entry], feedLength),
@@ -196,18 +240,20 @@ export class NetGame extends Context.Service<
         });
 
         const respawned = (event: typeof Net.Respawn.Type) =>
-          event.player === you
-            ? Effect.suspend(() => {
-                respawnTo = event.position;
-                alive = true;
-                respawnAt = undefined;
-                return updateView((view) => ({
-                  ...view,
-                  eliminatedBy: undefined,
-                  respawnIn: undefined,
-                }));
-              })
-            : Effect.void;
+          Effect.suspend(() => {
+            const local = locals.get(event.player);
+            if (local) {
+              local.respawnTo = event.position;
+              local.alive = true;
+            }
+            if (event.player !== you) return Effect.void;
+            respawnAt = undefined;
+            return updateView((view) => ({
+              ...view,
+              eliminatedBy: undefined,
+              respawnIn: undefined,
+            }));
+          });
 
         const applyLocal = (event: NetEvent) =>
           NetEvent.match(event, {
@@ -312,6 +358,16 @@ export class NetGame extends Context.Service<
           Effect.forkScoped,
         );
 
+        yield* SubscriptionRef.changes(network.players).pipe(
+          Stream.runForEach((players) =>
+            updateView((view) => ({
+              ...view,
+              present: Arr.map(players, (player) => player.id),
+            })),
+          ),
+          Effect.forkScoped,
+        );
+
         if (!isHost) {
           yield* network.snapshots.pipe(
             Stream.runForEach((snapshot) =>
@@ -334,11 +390,16 @@ export class NetGame extends Context.Service<
             yield* SubscriptionRef.get(network.players),
             (player) => player.id,
           );
-          const own = localState;
+          const states = Arr.flatMap([...locals], ([id, { state }]) =>
+            state ? [[id, state] as const] : [],
+          );
           const due = yield* Ref.modify(matchRef, (match) => {
-            const synced = syncRoster(match, members);
             const step = respawnDue(
-              own ? receiveState(synced, you, own) : synced,
+              Arr.reduce(
+                states,
+                syncRoster(match, members),
+                (next, [id, state]) => receiveState(next, id, state),
+              ),
               now,
               spawns,
             );
@@ -361,11 +422,9 @@ export class NetGame extends Context.Service<
             view.respawnIn === respawnIn ? view : { ...view, respawnIn },
           );
           if (isHost) return yield* hostTick(now);
-          if (localState) {
-            yield* network.broadcast(
-              'state',
-              yield* encodePlayerState(localState),
-            );
+          const own = locals.get(you)?.state;
+          if (own) {
+            yield* network.broadcast('state', yield* encodePlayerState(own));
           }
         }).pipe(
           Effect.catch((error) =>
@@ -378,18 +437,20 @@ export class NetGame extends Context.Service<
           Effect.forkScoped,
         );
 
+        // Only players simulated here can fire, so a client fires as `you`.
         const fire = Effect.fn('NetGame.fire')(function* (
+          shooter: PlayerId,
           origin: Vec3,
           dir: Vec3,
           hit: PlayerHit | undefined,
         ) {
-          if (!alive) return;
+          if (locals.get(shooter)?.alive !== true) return;
           const events: ReadonlyArray<NetEvent> = [
-            Net.Shot.make({ shooter: you, origin, dir }),
+            Net.Shot.make({ shooter, origin, dir }),
             ...(hit
               ? [
                   Net.Hit.make({
-                    shooter: you,
+                    shooter,
                     target: hit.target,
                     point: hit.point,
                   }),
@@ -399,10 +460,25 @@ export class NetGame extends Context.Service<
           yield* Effect.forEach(
             events,
             (event) =>
-              isHost ? hostHandle(you, event) : broadcastEvent(event),
+              isHost ? hostHandle(shooter, event) : broadcastEvent(event),
             { discard: true },
           );
         });
+
+        const controls = (id: PlayerId) => {
+          const local = locals.get(id);
+          return {
+            report: (state: PlayerState) => {
+              if (local) local.state = state;
+            },
+            alive: () => local?.alive ?? false,
+            takeRespawn: () => {
+              const target = local?.respawnTo;
+              if (local) local.respawnTo = undefined;
+              return target;
+            },
+          };
+        };
 
         const announceEnd = Effect.gen(function* () {
           if (!isHost) return;
@@ -414,16 +490,10 @@ export class NetGame extends Context.Service<
           you,
           isHost,
           roster,
-          spawn: initialSpawn(spawns, rosterIndex(roster, you)),
-          report: (state) => {
-            localState = state;
-          },
-          alive: () => alive,
-          takeRespawn: () => {
-            const target = respawnTo;
-            respawnTo = undefined;
-            return target;
-          },
+          bots,
+          controls,
+          ...controls(you),
+          spawnOf: (id) => initialSpawn(spawns, rosterIndex(roster, id)),
           updateRemotes: () => {
             const living = new Set(
               Arr.flatMap(world?.players ?? [], (player) =>
@@ -438,8 +508,8 @@ export class NetGame extends Context.Service<
             ...Arr.flatMap([...remotes], ([id, pose]) =>
               id === except ? [] : [[id, pose.position] as const],
             ),
-            ...(alive && localState && except !== you
-              ? [[you, localState.position] as const]
+            ...(yours?.alive === true && yours.state && except !== you
+              ? [[you, yours.state.position] as const]
               : []),
           ],
           takeShots: () => {
@@ -447,8 +517,8 @@ export class NetGame extends Context.Service<
             shots = [];
             return taken;
           },
-          fire: (origin, dir, hit) => {
-            run(fire(origin, dir, hit));
+          fire: (shooter, origin, dir, hit) => {
+            run(fire(shooter, origin, dir, hit));
           },
           announceEnd,
         });
@@ -466,6 +536,12 @@ export const colorOf = (
   id: PlayerId,
 ) => playerColor(rosterIndex(roster, id));
 
+export const arenaSpawns = (arena: Arena) =>
+  Arr.map(
+    spawnPoints(arena.roads),
+    ([x, z]) => [x, heightAt(arena, x, z) + spawnHeight, z] as const,
+  );
+
 // One per match and arena: rebuilt with the peer network, so a new match
 // starts from fresh scores.
 export const netGameAtom = Atom.family((coordinates: Coordinates) =>
@@ -473,13 +549,9 @@ export const netGameAtom = Atom.family((coordinates: Coordinates) =>
     Effect.gen(function* () {
       const network = yield* get.result(peerNetworkAtom);
       const arena = yield* get.result(arenaAtom(coordinates));
-      const spawns = Arr.map(
-        spawnPoints(arena.roads),
-        ([x, z]) => [x, spawnHeight, z] as const,
-      );
-      const context = yield* Layer.build(NetGame.layerWith(spawns)).pipe(
-        Effect.provideService(PeerNetwork, network),
-      );
+      const context = yield* Layer.build(
+        NetGame.layerWith(arenaSpawns(arena)),
+      ).pipe(Effect.provideService(PeerNetwork, network));
       return Context.get(context, NetGame);
     }),
   ),

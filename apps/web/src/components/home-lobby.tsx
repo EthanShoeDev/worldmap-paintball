@@ -1,14 +1,51 @@
 import '@tanstack/react-start/client-only';
 import { useAtom, useAtomSet, useAtomValue } from '@effect/atom-react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Option, String as Str } from 'effect';
+import { Array as Arr, Option, String as Str } from 'effect';
+import { useState } from 'react';
 
+import { maxPracticeBots } from '../game/tuning.ts';
 import { createLobbyAtom, lobbyStateAtom } from '../lobby/lobby-atoms.ts';
 import { activeLobbyCode } from '../lobby/lobby-view.ts';
 import { selectionAtom, warmArenaAtom } from '../location/location-atoms.ts';
 import { toLobbyLocation } from './lobby-helpers.ts';
 import { playerNameAtom } from './player-name-atom.ts';
 import { PlayerNameInput } from './player-name.tsx';
+
+const PracticeLinks = ({
+  lat,
+  lon,
+}: {
+  readonly lat: number;
+  readonly lon: number;
+}) => {
+  const [bots, setBots] = useState(3);
+  return (
+    <div className='flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-slate-600'>
+      <Link className='underline' to='/play' search={{ lat, lon }}>
+        Practice here solo
+      </Link>
+      <span className='flex items-center gap-1'>
+        <Link className='underline' to='/play' search={{ lat, lon, bots }}>
+          Practice here with
+        </Link>
+        <select
+          className='rounded border border-slate-300 px-1'
+          aria-label='Number of bots'
+          value={bots}
+          onChange={(event) => setBots(Number(event.target.value))}
+        >
+          {Arr.map(Arr.range(0, maxPracticeBots), (count) => (
+            <option key={count} value={count}>
+              {count}
+            </option>
+          ))}
+        </select>
+        bots
+      </span>
+    </div>
+  );
+};
 
 export const HostActions = () => {
   const selection = useAtomValue(selectionAtom);
@@ -49,13 +86,7 @@ export const HostActions = () => {
       {name.length === 0 && (
         <p className='text-sm text-slate-500'>Enter your name to host.</p>
       )}
-      <Link
-        className='text-center text-sm text-slate-600 underline'
-        to='/play'
-        search={{ lat: location.lat, lon: location.lon }}
-      >
-        Practice here solo
-      </Link>
+      <PracticeLinks lat={location.lat} lon={location.lon} />
     </div>
   );
 };

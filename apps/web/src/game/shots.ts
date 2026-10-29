@@ -2,7 +2,7 @@ import '@tanstack/react-start/client-only';
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { type Object3D, Raycaster, Vector3 } from 'three';
 
-import { nearestPlayerHit } from './net/hit-test.ts';
+import { distance, nearestPlayerHit } from './net/hit-test.ts';
 import type { Vec3 } from './net/protocol.ts';
 import type { Hit } from './splats.ts';
 import { fireRange } from './tuning.ts';
@@ -42,4 +42,17 @@ export const traceShot = (
   return player
     ? { player, surface: undefined }
     : { player: undefined, surface: surface?.hit };
+};
+
+// Whether the arena leaves the straight line between two points open.
+export const clearLine = (arena: Object3D | null, from: Vec3, to: Vec3) => {
+  const length = distance(from, to);
+  if (!arena || length === 0) return true;
+  const dir = [
+    (to[0] - from[0]) / length,
+    (to[1] - from[1]) / length,
+    (to[2] - from[2]) / length,
+  ] as const;
+  const blocker = raycastArena(arena, from, dir);
+  return blocker === undefined || blocker.distance >= length;
 };

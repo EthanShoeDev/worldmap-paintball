@@ -1,14 +1,15 @@
 import type { Arena } from '@worldmap-paintball/api-contract';
 import { Array as Arr, Order } from 'effect';
 import {
-  BufferGeometry,
+  type BufferGeometry,
   ExtrudeGeometry,
-  Float32BufferAttribute,
+  PlaneGeometry,
   Shape,
-  ShapeGeometry,
   Vector2,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+import { type Ground, groundBelow } from './terrain.ts';
 
 type Point = readonly [number, number];
 type Ring = ReadonlyArray<Point>;
@@ -38,7 +39,12 @@ const merge = (geometries: BufferGeometry[]) => {
   return merged ?? undefined;
 };
 
-export const buildingsGeometry = (buildings: Arena['buildings']) =>
+// Each building stands on the lowest ground under its footprint, so it never
+// floats on a slope.
+export const buildingsGeometry = ({
+  buildings,
+  ...ground
+}: Ground & Pick<Arena, 'buildings'>) =>
   merge(
     Arr.flatMap(buildings, ({ footprint, height }) => {
       const shape = toShape(footprint);
@@ -48,106 +54,33 @@ export const buildingsGeometry = (buildings: Arena['buildings']) =>
         bevelEnabled: false,
       });
       geometry.rotateX(-Math.PI / 2);
+      geometry.translate(0, groundBelow(ground, footprint), 0);
       return [geometry];
     }),
   );
 
-export const areasGeometry = (outlines: ReadonlyArray<Ring>, y: number) =>
-  merge(
-    Arr.flatMap(outlines, (outline) => {
-      const shape = toShape(outline);
-      if (!shape) return [];
-      const geometry = new ShapeGeometry(shape);
-      geometry.rotateX(-Math.PI / 2);
-      geometry.translate(0, y, 0);
-      return [geometry];
-    }),
+// The terrain grid as a mesh. PlaneGeometry lays its vertices out row by row
+// from the north-west corner once rotated flat, the same order as the grid.
+export const groundGeometry = ({ halfSize, terrain }: Ground) => {
+  const segments = terrain ? terrain.size - 1 : 1;
+  const geometry = new PlaneGeometry(
+    halfSize * 2,
+    halfSize * 2,
+    segments,
+    segments,
   );
-
-// Miter joins, capped so sharp turns don't spike far beyond the road width.
-const maxMiter = 2;
-
-const offsets = (path: Ring, index: number): Point => {
-  const point = path[index] ?? [0, 0];
-  const previous = path[index - 1] ?? point;
-  const next = path[index + 1] ?? point;
-  const direction = (from: Point, to: Point): Point => {
-    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    return length === 0
-      ? [0, 0]
-      : [(to[0] - from[0]) / length, (to[1] - from[1]) / length];
-  };
-  const incoming = direction(previous, point);
-  const outgoing = direction(point, next);
-  const tangent = [
-    incoming[0] + outgoing[0],
-    incoming[1] + outgoing[1],
-  ] as const;
-  const tangentLength = Math.hypot(tangent[0], tangent[1]) || 1;
-  const normal: Point = [
-    -tangent[1] / tangentLength,
-    tangent[0] / tangentLength,
-  ];
-  const segment = index > 0 ? incoming : outgoing;
-  const cos = Math.abs(normal[0] * -segment[1] + normal[1] * segment[0]);
-  const scale = Math.min(1 / Math.max(cos, 1e-6), maxMiter);
-  return [normal[0] * scale, normal[1] * scale];
-};
-
-// One flat quad strip per road at height y. Triangles wind counter-clockwise
-// seen from above so their faces point +y.
-export const roadsGeometry = (roads: Arena['roads'], y: number) => {
-  const positions: number[] = [];
-  const indices: number[] = [];
-  for (const { path, width } of roads) {
-    if (path.length < 2) continue;
-    const base = positions.length / 3;
-    const halfWidth = width / 2;
-    for (const [index, [x, z]] of path.entries()) {
-      const [nx, nz] = offsets(path, index);
-      positions.push(
-        x + nx * halfWidth,
-        y,
-        z + nz * halfWidth,
-        x - nx * halfWidth,
-        y,
-        z - nz * halfWidth,
-      );
-    }
-    for (let index = 0; index < path.length - 1; index++) {
-      const left = base + index * 2;
-      const right = left + 1;
-      indices.push(left, left + 2, right, right, left + 2, right + 2);
-    }
+  geometry.rotateX(-Math.PI / 2);
+  const position = geometry.getAttribute('position');
+  for (let index = 0; index < position.count; index++) {
+    position.setY(index, terrain?.heights[index] ?? 0);
   }
-  if (indices.length === 0) return undefined;
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute(
-    'normal',
-    new Float32BufferAttribute(
-      Arr.flatten(Arr.makeBy(positions.length / 3, () => [0, 1, 0])),
-      3,
-    ),
-  );
-  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
   return geometry;
 };
 
-const outlines = (
-  areas: Arena['areas'],
-  kind: Arena['areas'][number]['kind'],
-) =>
-  Arr.map(
-    Arr.filter(areas, (area) => area.kind === kind),
-    (area) => area.outline,
-  );
-
 export const arenaGeometries = (arena: Arena) => ({
-  buildings: buildingsGeometry(arena.buildings),
-  parks: areasGeometry(outlines(arena.areas, 'park'), 0.02),
-  water: areasGeometry(outlines(arena.areas, 'water'), 0.03),
-  roads: roadsGeometry(arena.roads, 0.05),
+  buildings: buildingsGeometry(arena),
+  ground: groundGeometry(arena),
 });
 
 // Roads are rarely inside buildings, so spawn on the road node nearest the centre.

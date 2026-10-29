@@ -1,7 +1,13 @@
 import { assert, describe, it } from '@effect/vitest';
 import { Array as Arr } from 'effect';
 
-import { bakeArena, bounds, buildingHeight, project } from '../src/bake.ts';
+import {
+  bakeArena,
+  bakeFeatures,
+  bounds,
+  buildingHeight,
+  project,
+} from '../src/bake.ts';
 
 const center = { lat: 0, lon: 0 };
 const offset = 0.0001;
@@ -139,5 +145,39 @@ describe('bakeArena', () => {
       roads: [],
       areas: [],
     });
+  });
+});
+
+describe('bakeFeatures', () => {
+  const far = 0.01;
+
+  it('keeps features touching the arena and drops the rest', () => {
+    const arena = bakeFeatures(center, 150, [
+      { type: 'building', outline: square, height: 5 },
+      {
+        type: 'building',
+        outline: Arr.map(square, ({ lat, lon }) => ({ lat, lon: lon + far })),
+        height: 5,
+      },
+      {
+        type: 'road',
+        path: [
+          { lat: 0, lon: -far },
+          { lat: 0, lon: far },
+        ],
+        width: 6,
+      },
+      { type: 'area', kind: 'wood', outline: square },
+      {
+        type: 'area',
+        kind: 'grass',
+        outline: Arr.map(square, ({ lat, lon }) => ({ lat: lat + far, lon })),
+      },
+    ]);
+    assert.deepStrictEqual(
+      [arena.buildings.length, arena.roads.length, arena.areas.length],
+      [1, 1, 1],
+    );
+    assert.strictEqual(arena.areas[0]?.kind, 'wood');
   });
 });

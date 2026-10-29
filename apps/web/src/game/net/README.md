@@ -12,6 +12,7 @@ player's own movement is authoritative in that player's browser.
 | `interpolation.ts` | Converts between `WorldSnapshot` and `@geckos.io/snapshot-interpolation` entities |
 | `net-game.ts` | `NetGame` service (network loops), `netGameAtom`, `matchViewAtom`, `endMatchAtom` |
 | `session.ts` | Decides whether `/play` is a lobby match or solo practice |
+| `practice.ts` | A peerless `PeerNetwork` and `practiceGameAtom`, for practice against bots |
 
 ## Model
 
@@ -50,6 +51,22 @@ player's own movement is authoritative in that player's browser.
 
 Bad messages never fail a loop. The decoders log them with `Effect.logWarning`
 and drop them.
+
+## Bots
+
+Bots run on the host. `NetGame` keeps a local slot for `you` and, on the
+host, for every bot in the roster. The host folds each slot's state into its
+snapshots, and a bot's shots go straight to `hostHandle`, so bots are scored,
+eliminated and respawned like anyone else. Each bot is a `<BotPlayer>`: a
+rapier capsule driven by `thinkBot` in `../bot-brain.ts`, which turns what the
+bot sees into the same `Intent` a human's devices produce. Bots wander the
+road graph from `../bot-nav.ts` and fight the nearest player they can see.
+The host draws them through `<RemotePlayers>`, from its own snapshots.
+
+Practice (`/play?lat=…&lon=…&bots=3`) needs no lobby server or WebRTC.
+`localPeerNetwork` is a host with no links: you and the bots are the whole
+roster, and `NetGame.layerWith` runs unchanged on top of it. For now a bot is
+any player whose id starts with `bot-`.
 
 ## Limits
 

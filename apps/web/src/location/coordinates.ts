@@ -24,16 +24,27 @@ export const parseCoordinates = (input: string) => {
 const metresPerDegreeLat = 110_540;
 const metresPerDegreeLon = 111_320;
 
-export const arenaSquare = ({ lat, lon }: Coordinates, halfSize: number) => {
+// The arena's edges in degrees.
+export const arenaBounds = ({ lat, lon }: Coordinates, halfSize: number) => {
   const dLat = halfSize / metresPerDegreeLat;
   const dLon =
     halfSize / (metresPerDegreeLon * Math.cos((lat * Math.PI) / 180));
+  return {
+    south: lat - dLat,
+    west: lon - dLon,
+    north: lat + dLat,
+    east: lon + dLon,
+  };
+};
+
+export const arenaSquare = (center: Coordinates, halfSize: number) => {
+  const { south, west, north, east } = arenaBounds(center, halfSize);
   const ring = [
-    [lon - dLon, lat - dLat],
-    [lon + dLon, lat - dLat],
-    [lon + dLon, lat + dLat],
-    [lon - dLon, lat + dLat],
-    [lon - dLon, lat - dLat],
+    [west, south],
+    [east, south],
+    [east, north],
+    [west, north],
+    [west, south],
   ];
   return {
     type: 'Feature' as const,

@@ -19,8 +19,16 @@ export const Road = Schema.Struct({
 });
 
 export const Area = Schema.Struct({
-  kind: Schema.Literals(['park', 'water']),
+  kind: Schema.Literals(['park', 'water', 'wood', 'grass']),
   outline: Schema.Array(Point),
+});
+
+// Ground heights in metres relative to the arena centre, on a `size` × `size`
+// grid spanning the arena from its north-west corner (-halfSize, -halfSize)
+// to its south-east corner, row by row from north to south.
+export const Terrain = Schema.Struct({
+  size: Schema.Int.check(Schema.isBetween({ minimum: 2, maximum: 257 })),
+  heights: Schema.Array(Schema.Finite),
 });
 
 export const Arena = Schema.Struct({
@@ -30,7 +38,11 @@ export const Arena = Schema.Struct({
   buildings: Schema.Array(Building),
   roads: Schema.Array(Road),
   areas: Schema.Array(Area),
+  // Absent when elevation data could not be fetched: the ground is flat.
+  terrain: Schema.optionalKey(Terrain),
 });
+
+export type Terrain = typeof Terrain.Type;
 
 export type Arena = typeof Arena.Type;
 

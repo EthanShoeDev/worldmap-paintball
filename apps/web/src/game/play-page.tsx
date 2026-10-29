@@ -93,8 +93,11 @@ const LobbyMatch = ({
 
 export const PlayAt = ({
   coordinates,
+  bots,
 }: {
   readonly coordinates: Coordinates;
+  // Practice opponents when no lobby match runs here.
+  readonly bots: number;
 }) => {
   const live = Option.getOrUndefined(
     Option.flatMapNullishOr(useAtomValue(lobbyStateAtom), (snapshot) =>
@@ -105,7 +108,7 @@ export const PlayAt = ({
   const [code, setCode] = useState(live);
   if (live !== undefined && live !== code) setCode(live);
   return code === undefined ? (
-    <Game coordinates={coordinates} networked={false} />
+    <Game coordinates={coordinates} networked={false} bots={bots} />
   ) : (
     <LobbyMatch code={code} coordinates={coordinates} />
   );

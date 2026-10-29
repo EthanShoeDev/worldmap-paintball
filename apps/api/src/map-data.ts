@@ -21,26 +21,45 @@ import {
 
 import type { ArenaBaker } from './arena-baker.ts';
 import { ArenaStore } from './arena-store.ts';
-import { BAKE_VERSION, bakeArena, type LatLon } from './bake.ts';
+import {
+  BAKE_VERSION,
+  bakeArena,
+  bakeFeatures,
+  bounds,
+  type LatLon,
+} from './bake.ts';
+import { Elevation } from './elevation.ts';
+import {
+  decodeTileFeatures,
+  OPENFREEMAP_URL,
+  OPENFREEMAP_ZOOM,
+  TileJson,
+} from './openfreemap.ts';
 import {
   OVERPASS_URL,
   OverpassResponse,
   overpassQuery,
   overpassWays,
 } from './overpass.ts';
+import { fetchTile, tilesCovering, tileUrl } from './tiles.ts';
 import { USER_AGENT } from './user-agent.ts';
 
 export const HALF_SIZE = 150;
 
 // Durable bakes are served for 30 days. A game arena does not need the
 // latest OSM edits, but a month bounds how long a bad or outdated bake lives
-// and keeps the load on Overpass at one query per arena per month.
+// and keeps the load on the free map services at one bake per arena per month.
 export const ARENA_MAX_AGE = Duration.days(30);
 
 // The in-memory tier only absorbs bursts (a lobby starting a match), so it is
 // small and short-lived; the durable store holds everything else.
 const MEMORY_CAPACITY = 32;
 const MEMORY_TTL = Duration.hours(1);
+
+// A source that hangs must still leave time for the fallback, and terrain is
+// optional, so neither may hold the bake up for long.
+const SOURCE_TIMEOUT = Duration.seconds(15);
+const TERRAIN_TIMEOUT = Duration.seconds(10);
 
 const isMapDataError = Schema.is(MapDataError);
 
@@ -63,7 +82,7 @@ export const arenaKey = (
 ) =>
   `arenas/v${version}/${halfSize}/${center.lat.toFixed(6)},${center.lon.toFixed(6)}.json`;
 
-// Any source of real-world map data (Overpass, Overture, PMTiles, a cache)
+// Any source of real-world map data (OpenFreeMap, Overpass, a cache)
 // provides this, so handlers never depend on a specific provider.
 export class MapData extends Context.Service<
   MapData,
@@ -100,6 +119,116 @@ export class MapData extends Context.Service<
           MapDataError.make({ message: `Overpass: ${cause.message}` }),
         ),
       );
+
+      return MapData.of({ arena });
+    }),
+  );
+
+  // OpenMapTiles vector tiles from OpenFreeMap's CDN: no query server, so no
+  // rate limits or outages under load, and the data is a weekly OSM import.
+  static readonly layerOpenFreeMap = Layer.effect(
+    MapData,
+    Effect.gen(function* () {
+      const client = (yield* HttpClient.HttpClient).pipe(
+        HttpClient.filterStatusOk,
+        HttpClient.retryTransient({
+          schedule: Schedule.exponential(500),
+          times: 2,
+        }),
+      );
+
+      const arena = Effect.fn('MapData.arena')(
+        function* (center: LatLon) {
+          yield* Effect.annotateCurrentSpan({ ...center });
+          yield* Effect.log('Fetching OpenFreeMap tiles', center);
+          const {
+            tiles: [template],
+          } = yield* HttpClientRequest.get(OPENFREEMAP_URL).pipe(
+            HttpClientRequest.setHeader('User-Agent', USER_AGENT),
+            HttpClientRequest.acceptJson,
+            client.execute,
+            Effect.flatMap(HttpClientResponse.schemaBodyJson(TileJson)),
+          );
+          const features = yield* Effect.forEach(
+            tilesCovering(bounds(center, HALF_SIZE), OPENFREEMAP_ZOOM),
+            (tile) =>
+              fetchTile(
+                client,
+                tileUrl(template, tile),
+                decodeTileFeatures(tile),
+              ),
+            { concurrency: 'unbounded' },
+          );
+          return bakeFeatures(center, HALF_SIZE, features.flat());
+        },
+        Effect.timeout(SOURCE_TIMEOUT),
+        Effect.mapError((cause) =>
+          MapDataError.make({ message: `OpenFreeMap: ${cause.message}` }),
+        ),
+      );
+
+      return MapData.of({ arena });
+    }),
+  );
+
+  // Serves `primary`, and `fallback` whenever primary fails.
+  static readonly layerFallback = <E1, R1, E2, R2>(
+    primary: Layer.Layer<MapData, E1, R1>,
+    fallback: Layer.Layer<MapData, E2, R2>,
+  ) =>
+    Layer.effect(
+      MapData,
+      Effect.gen(function* () {
+        const first = Context.get(yield* Layer.build(primary), MapData);
+        const second = Context.get(yield* Layer.build(fallback), MapData);
+        return MapData.of({
+          arena: (center) =>
+            first.arena(center).pipe(
+              Effect.catch((error) =>
+                Effect.logWarning('Falling back', error.message).pipe(
+                  Effect.andThen(second.arena(center)),
+                  Effect.mapError((fallbackError) =>
+                    MapDataError.make({
+                      message: `${error.message}; ${fallbackError.message}`,
+                    }),
+                  ),
+                ),
+              ),
+            ),
+        });
+      }),
+    );
+
+  // Decorates an upstream MapData with ground heights from Elevation,
+  // fetched alongside the geometry. Terrain is best-effort: without it the
+  // arena is flat, which beats no arena.
+  static readonly layerTerrain = Layer.effect(
+    MapData,
+    Effect.gen(function* () {
+      const upstream = yield* MapData;
+      const elevation = yield* Elevation;
+
+      const arena = Effect.fn('MapData.arenaWithTerrain')(function* (
+        center: LatLon,
+      ) {
+        const [geometry, terrain] = yield* Effect.all(
+          [
+            upstream.arena(center),
+            elevation.terrain(center, HALF_SIZE).pipe(
+              Effect.timeout(TERRAIN_TIMEOUT),
+              Effect.tapError((error) =>
+                Effect.logWarning('Baking without terrain', error.message),
+              ),
+              Effect.option,
+            ),
+          ],
+          { concurrency: 'unbounded' },
+        );
+        return Option.match(terrain, {
+          onNone: () => geometry,
+          onSome: (heights) => ({ ...geometry, terrain: heights }),
+        });
+      });
 
       return MapData.of({ arena });
     }),
@@ -174,11 +303,16 @@ export class MapData extends Context.Service<
       }),
     );
 
-  // Bakes once per centre over Overpass, cached in memory and durably in
-  // `store` (memory under Bun, R2 inside the ArenaBaker Durable Object).
+  // Bakes once per centre from OpenFreeMap (Overpass if that fails) with
+  // Terrarium terrain, cached in memory and durably in `store` (memory under
+  // Bun, R2 inside the ArenaBaker Durable Object).
   static readonly layerBaker = <R>(store: Layer.Layer<ArenaStore, never, R>) =>
     MapData.layerCached.pipe(
-      Layer.provide([MapData.layerOverpass, store]),
+      Layer.provide([MapData.layerTerrain, store]),
+      Layer.provide([
+        MapData.layerFallback(MapData.layerOpenFreeMap, MapData.layerOverpass),
+        Elevation.layerTerrarium,
+      ]),
       Layer.provide(FetchHttpClient.layer),
     );
 

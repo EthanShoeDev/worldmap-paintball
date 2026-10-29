@@ -16,9 +16,12 @@
   "dependencies": {
     "@alchemy.run/cloudflare": "catalog:",
     "@effect/platform-bun": "catalog:",
+    "@mapbox/vector-tile": "catalog:",
     "@worldmap-paintball/api-contract": "workspace:*",
     "alchemy": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "fast-png": "catalog:",
+    "pbf": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

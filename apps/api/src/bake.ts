@@ -1,5 +1,5 @@
 import type { Arena } from '@worldmap-paintball/api-contract';
-import { Array as Arr } from 'effect';
+import { Array as Arr, Record as Rec } from 'effect';
 
 export interface LatLon {
   readonly lat: number;
@@ -11,27 +11,50 @@ export interface OsmWay {
   readonly geometry: ReadonlyArray<LatLon>;
 }
 
+// What every map source (OSM ways, vector tiles) is reduced to before baking.
+export type MapFeature =
+  | {
+      readonly type: 'building';
+      readonly outline: ReadonlyArray<LatLon>;
+      readonly height: number;
+    }
+  | {
+      readonly type: 'road';
+      readonly path: ReadonlyArray<LatLon>;
+      readonly width: number;
+    }
+  | {
+      readonly type: 'area';
+      readonly kind: Arena['areas'][number]['kind'];
+      readonly outline: ReadonlyArray<LatLon>;
+    };
+
 const METRES_PER_DEGREE_LAT = 110_540;
 const METRES_PER_DEGREE_LON = 111_320;
 const METRES_PER_LEVEL = 3;
-const DEFAULT_BUILDING_HEIGHT = 8;
+export const DEFAULT_BUILDING_HEIGHT = 8;
 
-const ROAD_WIDTHS: Readonly<Record<string, number>> = {
-  motorway: 14,
-  trunk: 12,
-  primary: 10,
-  secondary: 9,
-  tertiary: 8,
-  residential: 6,
-  unclassified: 6,
-  service: 4,
-  pedestrian: 4,
-  living_street: 5,
-  footway: 2,
-  path: 2,
-  cycleway: 2,
-  steps: 2,
-};
+// A Map, not an object literal, so tag values such as "constructor" miss.
+const ROAD_WIDTHS = new Map<string, number>(
+  Rec.toEntries({
+    motorway: 14,
+    trunk: 12,
+    primary: 10,
+    secondary: 9,
+    tertiary: 8,
+    residential: 6,
+    unclassified: 6,
+    service: 4,
+    pedestrian: 4,
+    living_street: 5,
+    footway: 2,
+    path: 2,
+    cycleway: 2,
+    steps: 2,
+  }),
+);
+
+export const roadWidth = (type: string) => ROAD_WIDTHS.get(type);
 
 // Equirectangular projection; accurate to well under a metre across an arena.
 export const project = (center: LatLon, point: LatLon): [number, number] => {
@@ -40,6 +63,17 @@ export const project = (center: LatLon, point: LatLon): [number, number] => {
     (point.lon - center.lon) * METRES_PER_DEGREE_LON * cosLat,
     (center.lat - point.lat) * METRES_PER_DEGREE_LAT,
   ];
+};
+
+export const unproject = (
+  center: LatLon,
+  [x, z]: readonly [number, number],
+) => {
+  const cosLat = Math.cos((center.lat * Math.PI) / 180);
+  return {
+    lat: center.lat - z / METRES_PER_DEGREE_LAT,
+    lon: center.lon + x / (METRES_PER_DEGREE_LON * cosLat),
+  };
 };
 
 // Inverse of `project` for the arena bounds, as [south, west, north, east].
@@ -67,8 +101,8 @@ export const buildingHeight = (tags: OsmWay['tags']) => {
 const projectAll = (center: LatLon, points: ReadonlyArray<LatLon>) =>
   Arr.map(points, (point) => project(center, point));
 
-const closedRing = (center: LatLon, way: OsmWay) => {
-  const ring = projectAll(center, way.geometry);
+const closedRing = (center: LatLon, outline: ReadonlyArray<LatLon>) => {
+  const ring = projectAll(center, outline);
   const first = ring[0];
   const last = ring.at(-1);
   if (first && last && first[0] === last[0] && first[1] === last[1]) {
@@ -76,6 +110,17 @@ const closedRing = (center: LatLon, way: OsmWay) => {
   }
   return ring.length >= 3 ? ring : undefined;
 };
+
+// Like Overpass's bbox filter: keep anything whose bounding box touches the
+// arena, whole, even where it extends past the edge.
+const touchesArena = (
+  points: ReadonlyArray<readonly [number, number]>,
+  halfSize: number,
+) =>
+  Arr.some(points, ([x]) => x <= halfSize) &&
+  Arr.some(points, ([x]) => x >= -halfSize) &&
+  Arr.some(points, ([, z]) => z <= halfSize) &&
+  Arr.some(points, ([, z]) => z >= -halfSize);
 
 const areaKind = (tags: OsmWay['tags']) => {
   if (tags.natural === 'water') return 'water' as const;
@@ -89,16 +134,32 @@ const areaKind = (tags: OsmWay['tags']) => {
   return undefined;
 };
 
-// Part of every durable arena cache key (`arenaKey` in map-data.ts). Bump it
-// whenever bakeArena's output for the same OSM input changes, so bakes made
-// by older code stop matching instead of being served.
-export const BAKE_VERSION = 1;
+const osmFeature = (way: OsmWay): ReadonlyArray<MapFeature> => {
+  const { tags, geometry } = way;
+  if (tags.building !== undefined && tags.building !== 'no') {
+    return [
+      { type: 'building', outline: geometry, height: buildingHeight(tags) },
+    ];
+  }
+  const width =
+    tags.highway === undefined ? undefined : roadWidth(tags.highway);
+  if (width !== undefined && geometry.length >= 2) {
+    return [{ type: 'road', path: geometry, width }];
+  }
+  const kind = areaKind(tags);
+  return kind === undefined ? [] : [{ type: 'area', kind, outline: geometry }];
+};
 
-export const bakeArena = (
+// Part of every durable arena cache key (`arenaKey` in map-data.ts). Bump it
+// whenever baking output for the same map data changes, so bakes made by
+// older code stop matching instead of being served.
+export const BAKE_VERSION = 2;
+
+export const bakeFeatures = (
   center: LatLon,
   halfSize: number,
-  ways: ReadonlyArray<OsmWay>,
-): Arena => {
+  features: Iterable<MapFeature>,
+) => {
   const arena = {
     ...center,
     halfSize,
@@ -106,27 +167,27 @@ export const bakeArena = (
     roads: [] as Array<Arena['roads'][number]>,
     areas: [] as Array<Arena['areas'][number]>,
   };
-  for (const way of ways) {
-    const { tags } = way;
-    const roadWidth =
-      tags.highway === undefined ? undefined : ROAD_WIDTHS[tags.highway];
-    if (tags.building !== undefined && tags.building !== 'no') {
-      const footprint = closedRing(center, way);
-      if (footprint) {
-        arena.buildings.push({ footprint, height: buildingHeight(tags) });
+  for (const feature of features) {
+    if (feature.type === 'road') {
+      const path = projectAll(center, feature.path);
+      if (path.length >= 2 && touchesArena(path, halfSize)) {
+        arena.roads.push({ path, width: feature.width });
       }
-    } else if (roadWidth !== undefined && way.geometry.length >= 2) {
-      arena.roads.push({
-        path: projectAll(center, way.geometry),
-        width: roadWidth,
-      });
+      continue;
+    }
+    const ring = closedRing(center, feature.outline);
+    if (ring === undefined || !touchesArena(ring, halfSize)) continue;
+    if (feature.type === 'building') {
+      arena.buildings.push({ footprint: ring, height: feature.height });
     } else {
-      const kind = areaKind(tags);
-      const outline = closedRing(center, way);
-      if (kind !== undefined && outline !== undefined) {
-        arena.areas.push({ kind, outline });
-      }
+      arena.areas.push({ kind: feature.kind, outline: ring });
     }
   }
   return arena;
 };
+
+export const bakeArena = (
+  center: LatLon,
+  halfSize: number,
+  ways: ReadonlyArray<OsmWay>,
+) => bakeFeatures(center, halfSize, Arr.flatMap(ways, osmFeature));
