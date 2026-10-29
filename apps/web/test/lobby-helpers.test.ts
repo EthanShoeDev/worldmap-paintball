@@ -1,5 +1,6 @@
 import { assert, describe, it } from '@effect/vitest';
 import type { Lobby } from '@worldmap-paintball/api/lobby/protocol';
+import { Array as Arr, String as Str } from 'effect';
 
 import {
   canStartMatch,
@@ -40,7 +41,7 @@ const lobby = (ready: ReadonlyArray<boolean>): Lobby => ({
   location: { lat: 0, lon: 0 },
   players: [
     { id: 'host', name: 'Host', ready: false },
-    ...ready.map((flag, index) => ({
+    ...Arr.map(ready, (flag, index) => ({
       id: `p${index}`,
       name: `P${index}`,
       ready: flag,
@@ -64,7 +65,7 @@ describe('toLobbyLocation', () => {
     const location = toLobbyLocation({
       lat: 51.500_712_34,
       lon: -0.124_6,
-      label: 'x'.repeat(200),
+      label: Str.repeat(200)('x'),
     });
     assert.strictEqual(location.lat, 51.500_712);
     assert.strictEqual(location.lon, -0.124_6);

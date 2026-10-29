@@ -1,17 +1,8 @@
+import '@tanstack/react-start/client-only';
 import { useAtom } from '@effect/atom-react';
-import { BrowserKeyValueStore } from '@effect/platform-browser';
-import { Schema } from 'effect';
-import { Atom } from 'effect/reactivity';
 
 import { maxNameLength } from './lobby-helpers.ts';
-
-// Storage failures (private mode, blocked site data) leave the name in memory only.
-export const playerNameAtom = Atom.kvs({
-  runtime: Atom.runtime(BrowserKeyValueStore.layerLocalStorage),
-  key: 'worldmap-paintball/player-name',
-  schema: Schema.String,
-  defaultValue: () => '',
-});
+import { playerNameAtom } from './player-name-atom.ts';
 
 export const PlayerNameInput = () => {
   const [name, setName] = useAtom(playerNameAtom);
@@ -22,7 +13,8 @@ export const PlayerNameInput = () => {
         className='rounded border border-slate-300 px-3 py-2 font-normal'
         placeholder='Splatter'
         maxLength={maxNameLength}
-        autoComplete='nickname'
+        // The name is already remembered in localStorage.
+        autoComplete='off'
         value={name}
         onChange={(event) => setName(event.target.value)}
       />

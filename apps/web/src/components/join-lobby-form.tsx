@@ -1,16 +1,18 @@
-import { useAtom, useAtomValue } from '@effect/atom-react';
+import '@tanstack/react-start/client-only';
+import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { useNavigate } from '@tanstack/react-router';
-import { Exit, String as Str } from 'effect';
-import { AsyncResult } from 'effect/reactivity';
+import { Option, String as Str } from 'effect';
 import { useState } from 'react';
 
-import { joinLobbyAtom } from '../lobby/lobby-atoms.ts';
+import { lobbyStateAtom, sendLobbyEventAtom } from '../lobby/lobby-atoms.ts';
+import { LobbyEvents } from '../lobby/lobby-machine.ts';
+import { connectingFor, failureFor } from '../lobby/lobby-view.ts';
 import {
   cleanLobbyCode,
+  failureMessage,
   isCompleteLobbyCode,
-  lobbyErrorMessage,
 } from './lobby-helpers.ts';
-import { playerNameAtom } from './player-name.tsx';
+import { playerNameAtom } from './player-name-atom.ts';
 
 export const JoinLobbyForm = ({
   initialCode = '',
@@ -19,8 +21,16 @@ export const JoinLobbyForm = ({
 }) => {
   const [code, setCode] = useState(() => cleanLobbyCode(initialCode));
   const name = Str.trim(useAtomValue(playerNameAtom));
-  const [result, join] = useAtom(joinLobbyAtom, { mode: 'promiseExit' });
+  const snapshot = useAtomValue(lobbyStateAtom);
+  const send = useAtomSet(sendLobbyEventAtom);
   const navigate = useNavigate();
+  const joining = Option.exists(snapshot, (current) =>
+    connectingFor(current, code),
+  );
+  const failure = Option.filter(
+    Option.flatMap(snapshot, (current) => failureFor(current, code)),
+    (failed) => failed.request === 'Join',
+  );
   const ready = name.length > 0 && isCompleteLobbyCode(code);
 
   return (
@@ -29,14 +39,8 @@ export const JoinLobbyForm = ({
       onSubmit={(event) => {
         event.preventDefault();
         if (!ready) return;
-        void join({ code, name }).then((exit) => {
-          if (Exit.isSuccess(exit)) {
-            return navigate({
-              to: '/lobby/$code',
-              params: { code: exit.value.code },
-            });
-          }
-        });
+        send(LobbyEvents.Join({ code, name }));
+        void navigate({ to: '/lobby/$code', params: { code } });
       }}
     >
       <label className='flex flex-col gap-1 text-sm font-medium'>
@@ -54,18 +58,18 @@ export const JoinLobbyForm = ({
           <button
             className='rounded bg-slate-800 px-4 py-2 font-semibold text-white disabled:opacity-50'
             type='submit'
-            disabled={!ready || result.waiting}
+            disabled={!ready || joining}
           >
-            {result.waiting ? 'Joining…' : 'Join'}
+            {joining ? 'Joining…' : 'Join'}
           </button>
         </div>
       </label>
       {name.length === 0 && (
         <p className='text-sm text-slate-500'>Enter your name to join.</p>
       )}
-      {AsyncResult.isFailure(result) && !result.waiting && (
+      {Option.isSome(failure) && (
         <p className='text-sm text-red-600'>
-          {lobbyErrorMessage(result.cause)}
+          {failureMessage(failure.value.reason)}
         </p>
       )}
     </form>

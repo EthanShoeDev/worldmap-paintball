@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
 import { type Object3D, Raycaster, Vector3 } from 'three';
 

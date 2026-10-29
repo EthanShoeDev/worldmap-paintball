@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { SnapshotInterpolation } from '@geckos.io/snapshot-interpolation';
 import type { Player, PlayerId } from '@worldmap-paintball/api/lobby/protocol';
 import {
@@ -22,11 +23,7 @@ import {
   peerNetworkAtom,
 } from '../../lobby/lobby-atoms.ts';
 import { LobbyClient } from '../../lobby/lobby-client.ts';
-import {
-  type PeerMessage,
-  PeerNetwork,
-  PeerNetworkError,
-} from '../../lobby/peer-network.ts';
+import { type PeerMessage, PeerNetwork } from '../../lobby/peer-network.ts';
 import type { Coordinates } from '../../location/coordinates.ts';
 import { spawnPoints } from '../arena-meshes.ts';
 import {
@@ -150,14 +147,8 @@ export class NetGame extends Context.Service<
       NetGame,
       Effect.gen(function* () {
         const network = yield* PeerNetwork;
-        const lobbyClient = yield* LobbyClient;
         const registry = yield* AtomRegistry.AtomRegistry;
-        const { you, lobby } = yield* SubscriptionRef.get(lobbyClient.session);
-        if (you === undefined || lobby === undefined) {
-          return yield* PeerNetworkError.make({ reason: 'MatchNotStarted' });
-        }
-        const { isHost } = network;
-        const { hostId, players: roster } = lobby;
+        const { you, isHost, hostId, roster } = network;
         const run = yield* FiberSet.makeRuntime();
         const interpolation = new SnapshotInterpolation();
         interpolation.interpolationBuffer.set(interpolationBufferMs);
@@ -339,11 +330,8 @@ export class NetGame extends Context.Service<
         }
 
         const hostTick = Effect.fn('NetGame.hostTick')(function* (now: number) {
-          const { lobby: current } = yield* SubscriptionRef.get(
-            lobbyClient.session,
-          );
           const members = Arr.map(
-            current?.players ?? [],
+            yield* SubscriptionRef.get(network.players),
             (player) => player.id,
           );
           const own = localState;

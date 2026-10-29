@@ -14,7 +14,7 @@ export const LobbyRoutes = Layer.effectDiscard(
     const rooms = yield* LobbyRooms;
     yield* router.add(
       'GET',
-      '/lobbies/:code/ws',
+      '/api/lobbies/:code/ws',
       Effect.gen(function* () {
         const { code } = yield* HttpRouter.schemaPathParams(LobbyPath);
         const request = yield* HttpServerRequest.HttpServerRequest;

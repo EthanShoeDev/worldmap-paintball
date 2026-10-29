@@ -55,6 +55,7 @@
       "name": "@worldmap-paintball/web",
       "version": "0.0.0",
       "dependencies": {
+        "@alchemy.run/cloudflare": "catalog:",
         "@effect/atom-react": "catalog:",
         "@effect/platform-browser": "catalog:",
         "@geckos.io/snapshot-interpolation": "catalog:",

@@ -10,6 +10,7 @@
     "clean": "rm -rf dist .tanstack .turbo"
   },
   "dependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
     "@effect/atom-react": "catalog:",
     "@effect/platform-browser": "catalog:",
     "@geckos.io/snapshot-interpolation": "catalog:",

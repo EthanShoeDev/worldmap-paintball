@@ -88,4 +88,5 @@ export class Api extends HttpApi.make('api')
   .add(HealthGroup)
   .add(GreetingsGroup)
   .add(ArenasGroup)
-  .add(PlacesGroup) {}
+  .add(PlacesGroup)
+  .prefix('/api') {}

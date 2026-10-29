@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { useAtomValue } from '@effect/atom-react';
 import { Array as Arr } from 'effect';
 

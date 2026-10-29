@@ -2,7 +2,7 @@
 
 A host picks a real-world location and opens a lobby. Friends join with a
 six-character code. The host starts the match, everyone loads the same arena
-(`GET /arenas?lat&lon` with the lobby's location), and the browsers connect to
+(`GET /api/arenas?lat&lon` with the lobby's location), and the browsers connect to
 each other over WebRTC. The server only runs the lobby and relays signaling.
 Gameplay traffic never touches it.
 
@@ -12,9 +12,9 @@ Gameplay traffic never touches it.
 | --- | --- |
 | `protocol.ts` | Effect Schema wire protocol, shared with the web app as `@worldmap-paintball/api/lobby/protocol` |
 | `reducer.ts` | Pure lobby logic: `reduce(lobby, from, message)` and `disconnect(lobby, from)` each return `{ lobby, outbox }` |
-| `rooms.ts` | `LobbyRooms` service: where lobby sockets live. `layerDurableObject(rooms)` for the Worker, `layerMemory` for the Bun dev server |
+| `rooms.ts` | `LobbyRooms` service: where lobby sockets live. `layerDurableObject(rooms)` on Cloudflare, `layerMemory` in one process |
 | `room.ts` | `LobbyRoom` Durable Object: WebSocket transport, storage, and delivery around the reducer |
-| `routes.ts` | `LobbyRoutes`: an `HttpRouter` layer that hands `GET /lobbies/:code/ws` to `LobbyRooms` |
+| `routes.ts` | `LobbyRoutes`: an `HttpRouter` layer that hands `GET /api/lobbies/:code/ws` to `LobbyRooms` |
 | `apps/web/src/lobby/lobby-client.ts` | `LobbyClient` service: WebSocket client, session state, signal buffer |
 | `apps/web/src/lobby/peer-network.ts` | `PeerNetwork` service: WebRTC star with `state` and `events` data channels |
 | `apps/web/src/lobby/lobby-atoms.ts` | Atoms for the UI (`effect/reactivity` + `@effect/atom-react`) |
@@ -61,7 +61,7 @@ Rules the reducer enforces:
   client-to-client signal gets `PeerNotHost`, and a sender outside the lobby
   gets `NotInLobby`. Rejected signals are never delivered.
 - Joining is closed while a match is running (`MatchInProgress`).
-- The location has the same bounds as `GET /arenas` (lat between -85 and 85).
+- The location has the same bounds as `GET /api/arenas` (lat between -85 and 85).
 
 ### Codes and identity
 
@@ -98,8 +98,8 @@ player id and drive the same `reduce` and `disconnect`.
 
 | Layer | Used by | Lobby state |
 | --- | --- | --- |
-| `LobbyRooms.layerDurableObject(rooms)` | `worker.ts` | one `LobbyRoom` Durable Object per code (below) |
-| `LobbyRooms.layerMemory` | `bin.ts` (`bun run --cwd apps/api dev`) | a `Map` of code to `{ lobby, sockets }` in the process |
+| `LobbyRooms.layerDurableObject(rooms)` | `cloudflare.ts` (`CloudflareBackends`) | one `LobbyRoom` Durable Object per code (below) |
+| `LobbyRooms.layerMemory` | `LocalBackends` in `handlers.ts` (the Bun server; Vite's dev server, which never gets a socket) | a `Map` of code to `{ lobby, sockets }` in the process |
 
 `layerMemory` upgrades with `HttpServerRequest.upgrade`, so it needs a server
 that supports it (`BunHttpServer`). It runs every reducer step under one
@@ -154,12 +154,15 @@ peer.
 
 ## Wiring
 
-`worker.ts` yields `LobbyRoom` (which registers the Durable Object export and
-binding) and provides `LobbyRooms.layerDurableObject(rooms)`. `bin.ts` provides
-`LobbyRooms.layerMemory`. `alchemy.run.ts` needs no changes: `yield* Api`
-already deploys whatever the Worker binds.
+`CloudflareBackends` (`../cloudflare.ts`) yields `LobbyRoom`, which registers
+the Durable Object export and binding on the Worker whose init yields it: the
+site's Worker (`apps/web/src/worker.server.ts`). It provides
+`LobbyRooms.layerDurableObject(rooms)`. `LocalBackends` provides
+`LobbyRooms.layerMemory`.
 
-The web app reaches the API under `/api`, and `LobbyClient.layerWebSocket('/api')`
-dials `ws(s)://<origin>/api/lobbies/<code>/ws`. The Vite dev proxy passes
-WebSocket upgrades through to the Bun server (`ws: true`). Whatever maps `/api`
-to the deployed Worker must do the same.
+`LobbyClient.layerWebSocket('/api')` dials
+`ws(s)://<origin>/api/lobbies/<code>/ws`, which is same-origin everywhere. On
+Cloudflare the site's `/api/$` route hands the upgrade to the room's Durable
+Object. Under `vite dev` the Vite proxy forwards `/api/lobbies` (`ws: true`) to
+the Bun server, because Vite's Node server cannot hand a socket to
+`layerMemory`.

@@ -26,7 +26,7 @@ const closed = Socket.SocketError.make({
 
 const requestFor = (code: string) =>
   HttpServerRequest.fromWeb(
-    new Request(`http://localhost/lobbies/${code}/ws`, {
+    new Request(`http://localhost/api/lobbies/${code}/ws`, {
       headers: { upgrade: 'websocket' },
     }),
   );

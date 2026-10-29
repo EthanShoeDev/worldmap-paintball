@@ -11,7 +11,8 @@ import { HttpApiTest } from 'effect/http-api';
 
 import { Api, Arena } from '../src/api.ts';
 import { Geocoder } from '../src/geocoder.ts';
-import { ApiLive, ArenasLive, PlacesLive } from '../src/handlers.ts';
+import { ApiRoutes, ArenasLive, PlacesLive } from '../src/handlers.ts';
+import { LobbyRooms } from '../src/lobby/rooms.ts';
 import { MapData } from '../src/map-data.ts';
 
 const MapDataEcho = Layer.succeed(
@@ -65,11 +66,16 @@ layer(
 });
 
 // The typed client validates before sending, so raw requests are needed to
-// exercise the server's own query decoding.
+// exercise the server's own query decoding and the lobby route.
 const get = Effect.fn(function* (path: string) {
   const handler = yield* HttpRouter.toHttpEffect(
-    ApiLive.pipe(
-      Layer.provide([MapDataEcho, GeocoderEcho, HttpServer.layerServices]),
+    ApiRoutes.pipe(
+      Layer.provide([
+        MapDataEcho,
+        GeocoderEcho,
+        LobbyRooms.layerMemory,
+        HttpServer.layerServices,
+      ]),
     ),
   );
   const request = HttpServerRequest.fromWeb(
@@ -89,7 +95,7 @@ const get = Effect.fn(function* (path: string) {
 describe('Arena query decoding', () => {
   it.effect('decodes lat and lon strings', () =>
     Effect.gen(function* () {
-      const response = yield* get('/arenas?lat=40.7128&lon=-74.006');
+      const response = yield* get('/api/arenas?lat=40.7128&lon=-74.006');
       assert.strictEqual(response.status, 200);
       const json = yield* Effect.promise(() =>
         HttpServerResponse.toWeb(response).json(),
@@ -102,22 +108,40 @@ describe('Arena query decoding', () => {
 
   it.effect('rejects an out-of-range latitude', () =>
     Effect.gen(function* () {
-      const response = yield* get('/arenas?lat=90&lon=0');
+      const response = yield* get('/api/arenas?lat=90&lon=0');
       assert.strictEqual(response.status, 400);
     }),
   );
 
   it.effect('rejects a non-numeric longitude', () =>
     Effect.gen(function* () {
-      const response = yield* get('/arenas?lat=0&lon=east');
+      const response = yield* get('/api/arenas?lat=0&lon=east');
       assert.strictEqual(response.status, 400);
     }),
   );
 
   it.effect('rejects a short place query', () =>
     Effect.gen(function* () {
-      const response = yield* get('/places?q=ab');
+      const response = yield* get('/api/places?q=ab');
       assert.strictEqual(response.status, 400);
+    }),
+  );
+});
+
+describe('Routes under /api', () => {
+  it.effect('serves the HttpApi only under the prefix', () =>
+    Effect.gen(function* () {
+      assert.strictEqual((yield* get('/api/health')).status, 200);
+      assert.strictEqual((yield* get('/health')).status, 404);
+    }),
+  );
+
+  it.effect('serves lobby sockets under the prefix', () =>
+    Effect.gen(function* () {
+      // A plain GET reaches the room, which wants a WebSocket upgrade.
+      assert.strictEqual((yield* get('/api/lobbies/ABCDEF/ws')).status, 426);
+      assert.strictEqual((yield* get('/api/lobbies/nope/ws')).status, 400);
+      assert.strictEqual((yield* get('/lobbies/ABCDEF/ws')).status, 404);
     }),
   );
 });

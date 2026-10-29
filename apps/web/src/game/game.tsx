@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomSuspense, useAtomValue } from '@effect/atom-react';
 import { Bvh, Sky } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';

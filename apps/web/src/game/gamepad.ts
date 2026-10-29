@@ -52,12 +52,6 @@ export const gamepadIntent = (
   };
 };
 
-export const connectedGamepads = () =>
-  Arr.filter(
-    navigator.getGamepads(),
-    (pad): pad is Gamepad => pad?.connected === true,
-  );
-
 export const pollGamepads = (
   pads: ReadonlyArray<PadState>,
   dt: number,

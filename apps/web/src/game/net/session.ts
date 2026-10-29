@@ -1,30 +1,34 @@
 import type { Location } from '@worldmap-paintball/api/lobby/protocol';
+import { Option } from 'effect';
 
-import type { LobbySession } from '../../lobby/lobby-client.ts';
+import { type LobbySnapshot, LobbyStates } from '../../lobby/lobby-machine.ts';
 import type { Coordinates } from '../../location/coordinates.ts';
 
 const sameLocation = (location: Location, coordinates: Coordinates) =>
   location.lat === coordinates.lat && location.lon === coordinates.lon;
 
+const codeOf = (snapshot: LobbySnapshot) =>
+  Option.map(LobbyStates.get(snapshot, 'Session'), ({ code }) => code);
+
 // /play joins the lobby's match only when it is running at these coordinates;
 // any other visit is solo practice.
 export const lobbyMatchCode = (
-  session: LobbySession,
+  snapshot: LobbySnapshot,
   coordinates: Coordinates,
 ) =>
-  session.lobby?.phase === 'playing' &&
-  sameLocation(session.lobby.location, coordinates)
-    ? session.code
+  LobbyStates.matches(snapshot, 'Session.InLobby.Playing') &&
+  Option.exists(LobbyStates.get(snapshot, 'Session.InLobby'), ({ lobby }) =>
+    sameLocation(lobby.location, coordinates),
+  )
+    ? Option.getOrUndefined(codeOf(snapshot))
     : undefined;
 
-export const matchStatus = (session: LobbySession, code: string) => {
-  if (
-    session.code !== code ||
-    session.lobby === undefined ||
-    session.closed !== undefined ||
-    session.status === 'disconnected'
-  ) {
-    return 'closed';
+export const matchStatus = (snapshot: LobbySnapshot, code: string) => {
+  if (!Option.contains(codeOf(snapshot), code)) return 'closed';
+  if (LobbyStates.matches(snapshot, 'Session.InLobby.Playing')) {
+    return 'playing';
   }
-  return session.lobby.phase === 'waiting' ? 'ended' : 'playing';
+  return LobbyStates.matches(snapshot, 'Session.InLobby.Waiting')
+    ? 'ended'
+    : 'closed';
 };

@@ -2,13 +2,20 @@ import type {
   Lobby,
   RejectReason,
 } from '@worldmap-paintball/api/lobby/protocol';
-import { Array as Arr, Cause, Option, String as Str } from 'effect';
+import {
+  Array as Arr,
+  Cause,
+  Option,
+  pipe,
+  Predicate,
+  String as Str,
+} from 'effect';
 
 import type {
   LobbyConnectionError,
   LobbyNotConnectedError,
-  LobbyRejectedError,
 } from '../lobby/lobby-client.ts';
+import type { FailureReason } from '../lobby/lobby-machine.ts';
 
 const codeLength = 6;
 const notInAlphabet = /[^A-HJ-NP-Z2-9]/g;
@@ -16,9 +23,13 @@ const notInAlphabet = /[^A-HJ-NP-Z2-9]/g;
 // Drops spaces, dashes and the characters the protocol leaves out (I, O, 0, 1).
 // Taking the last path segment lets people paste a whole invite link.
 export const cleanLobbyCode = (input: string) =>
-  Str.toUpperCase(input.slice(input.lastIndexOf('/') + 1))
-    .replace(notInAlphabet, '')
-    .slice(0, codeLength);
+  pipe(
+    input,
+    Str.slice(Option.getOrElse(Str.lastIndexOf('/')(input), () => -1) + 1),
+    Str.toUpperCase,
+    Str.replaceAll(notInAlphabet, ''),
+    Str.takeLeft(codeLength),
+  );
 
 export const isCompleteLobbyCode = (code: string) => code.length === codeLength;
 
@@ -44,23 +55,25 @@ const rejectionMessages: Record<RejectReason, string> = {
 export const rejectionMessage = (reason: RejectReason) =>
   rejectionMessages[reason];
 
-export const lobbyErrorMessage = (
-  cause: Cause.Cause<
-    LobbyConnectionError | LobbyRejectedError | LobbyNotConnectedError
-  >,
+const failureMessages: Record<FailureReason, string> = {
+  ...rejectionMessages,
+  Unreachable: 'Could not reach the lobby server.',
+  TimedOut: 'The lobby server did not answer. Try again.',
+};
+
+export const failureMessage = (reason: FailureReason) =>
+  failureMessages[reason];
+
+// For lobby actions sent straight to the socket.
+export const sendErrorMessage = (
+  cause: Cause.Cause<LobbyConnectionError | LobbyNotConnectedError>,
 ) =>
   Option.match(Cause.findErrorOption(cause), {
     onNone: () => 'Something went wrong. Try again.',
-    onSome: (error) => {
-      switch (error._tag) {
-        case 'LobbyRejectedError':
-          return rejectionMessage(error.reason);
-        case 'LobbyNotConnectedError':
-          return 'You are not connected to the lobby.';
-        case 'LobbyConnectionError':
-          return 'Could not reach the lobby server.';
-      }
-    },
+    onSome: (error) =>
+      Predicate.isTagged(error, 'LobbyNotConnectedError')
+        ? 'You are not connected to the lobby.'
+        : 'Could not reach the lobby server.',
   });
 
 export const canStartMatch = (lobby: Lobby) =>
@@ -79,5 +92,5 @@ export const toLobbyLocation = (selection: {
 }) => ({
   lat: round(selection.lat),
   lon: round(selection.lon),
-  label: selection.label.slice(0, labelLength),
+  label: Str.takeLeft(selection.label, labelLength),
 });

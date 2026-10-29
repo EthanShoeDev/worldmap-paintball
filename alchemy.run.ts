@@ -1,9 +1,9 @@
 import * as Cloudflare from '@alchemy.run/cloudflare';
 import * as Alchemy from 'alchemy';
-import { Effect, Path } from 'effect';
+import { Effect } from 'effect';
 import { ENV } from 'varlock/env';
 
-import Api from './apps/api/src/worker.ts';
+import Web from './apps/web/src/worker.server.ts';
 
 // Credentials come from the alchemy profile, and the state store is created
 // before the Stack body runs, so the profile must be checked at import time to
@@ -16,8 +16,8 @@ if (ENV.ALCHEMY_PROFILE !== PERSONAL_PROFILE) {
 }
 
 // The repo's one Stack. `infra:dev` runs it locally, `infra:deploy` deploys
-// it; the stage defaults to dev_$USER / live_$USER. Paths are anchored to this
-// file because alchemy resolves relative paths from where it runs.
+// it; the stage defaults to dev_$USER / live_$USER. The site's Worker also
+// serves the API and hosts its Durable Objects (apps/web/src/worker.server.ts).
 export default Alchemy.Stack(
   'worldmap-paintball',
   {
@@ -25,14 +25,7 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
-    const path = yield* Path.Path;
-    const web = yield* Cloudflare.Website.Vite('Web', {
-      rootDir: path.resolve(import.meta.dirname, 'apps/web'),
-    });
-    const api = yield* Api;
-    return {
-      web: web.url,
-      api: api.url,
-    };
+    const web = yield* Web;
+    return { web: web.url };
   }),
 );

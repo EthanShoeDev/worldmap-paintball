@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { useAtom } from '@effect/atom-react';
 
 import 'maplibre-gl/dist/maplibre-gl.css';

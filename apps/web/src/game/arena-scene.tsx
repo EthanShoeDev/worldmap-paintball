@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import type { Arena } from '@worldmap-paintball/api/api';
 import { Record } from 'effect';

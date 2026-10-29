@@ -28,6 +28,7 @@ import {
   overpassQuery,
   overpassWays,
 } from './overpass.ts';
+import { USER_AGENT } from './user-agent.ts';
 
 export const HALF_SIZE = 150;
 
@@ -86,6 +87,7 @@ export class MapData extends Context.Service<
           yield* Effect.annotateCurrentSpan({ ...center });
           yield* Effect.log('Querying Overpass', center);
           const response = yield* HttpClientRequest.post(OVERPASS_URL).pipe(
+            HttpClientRequest.setHeader('User-Agent', USER_AGENT),
             HttpClientRequest.bodyUrlParams({
               data: overpassQuery(center, HALF_SIZE),
             }),

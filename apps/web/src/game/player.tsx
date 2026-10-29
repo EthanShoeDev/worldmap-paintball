@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   CapsuleCollider,

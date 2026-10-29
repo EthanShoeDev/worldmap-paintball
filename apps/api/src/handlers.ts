@@ -3,6 +3,8 @@ import { HttpApiBuilder } from 'effect/http-api';
 
 import { Api } from './api.ts';
 import { Geocoder } from './geocoder.ts';
+import { LobbyRooms } from './lobby/rooms.ts';
+import { LobbyRoutes } from './lobby/routes.ts';
 import { MapData } from './map-data.ts';
 
 export const HealthLive = HttpApiBuilder.group(Api, 'health', (handlers) =>
@@ -38,4 +40,18 @@ export const PlacesLive = HttpApiBuilder.group(
 
 export const ApiLive = HttpApiBuilder.layer(Api).pipe(
   Layer.provide([HealthLive, GreetingsLive, ArenasLive, PlacesLive]),
+);
+
+// Everything the API serves under /api: the HttpApi and the lobby sockets.
+export const ApiRoutes = Layer.mergeAll(ApiLive, LobbyRoutes);
+
+// The services ApiRoutes runs on.
+export type ApiBackends = MapData | Geocoder | LobbyRooms;
+
+// ApiBackends inside a single process (the Bun server, Vite's dev server,
+// tests). Cloudflare's are in `./cloudflare.ts`.
+export const LocalBackends = Layer.mergeAll(
+  MapData.layer,
+  Geocoder.layer,
+  LobbyRooms.layerMemory,
 );

@@ -1,12 +1,13 @@
+import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
-import { Array as Arr } from 'effect';
+import { Array as Arr, Option } from 'effect';
 import { type RefObject, useRef } from 'react';
 import type { Group, Object3D } from 'three';
 
-import { lobbySessionAtom } from '../lobby/lobby-atoms.ts';
+import { inLobbyAtom } from '../lobby/lobby-atoms.ts';
 import { colorOf, type NetGame } from './net/net-game.ts';
 import { traceShot } from './shots.ts';
 import { appendSplat, splatsAtom } from './splats.ts';
@@ -50,10 +51,13 @@ const Avatar = ({
 
 // Remote players drawn at their interpolated poses, ~100 ms in the past.
 export const RemotePlayers = ({ net }: { readonly net: Net }) => {
-  const session = useAtomValue(lobbySessionAtom);
+  const inLobby = useAtomValue(inLobbyAtom);
   const avatars = useRef(new Map<PlayerId, Group>());
   const present = new Set(
-    Arr.map(session.lobby?.players ?? [], (player) => player.id),
+    Option.match(inLobby, {
+      onNone: () => [],
+      onSome: ({ lobby }) => Arr.map(lobby.players, (player) => player.id),
+    }),
   );
   const others = Arr.filter(
     net.roster,

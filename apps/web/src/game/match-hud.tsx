@@ -1,8 +1,9 @@
+import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import type { PlayerId } from '@worldmap-paintball/api/lobby/protocol';
 import { Array as Arr, Option, Order } from 'effect';
 
-import { lobbySessionAtom } from '../lobby/lobby-atoms.ts';
+import { inLobbyAtom } from '../lobby/lobby-atoms.ts';
 import {
   colorOf,
   endMatchAtom,
@@ -26,9 +27,12 @@ export const Scoreboard = ({
   readonly view: MatchView;
   readonly scores: ReadonlyArray<Score>;
 }) => {
-  const session = useAtomValue(lobbySessionAtom);
+  const inLobby = useAtomValue(inLobbyAtom);
   const present = new Set(
-    Arr.map(session.lobby?.players ?? [], (player) => player.id),
+    Option.match(inLobby, {
+      onNone: () => [],
+      onSome: ({ lobby }) => Arr.map(lobby.players, (player) => player.id),
+    }),
   );
   const rows = Arr.sort(
     Arr.map(view.roster, (player) => {

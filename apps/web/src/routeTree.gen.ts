@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlayRouteImport } from './routes/play'
+import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as LobbyCodeRouteImport } from './routes/lobby.$code'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const PlayRoute = PlayRouteImport.update({
   path: '/play',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LobbyCodeRoute = LobbyCodeRouteImport.update({
   id: '/lobby/$code',
   path: '/lobby/$code',
@@ -32,30 +38,34 @@ const LobbyCodeRoute = LobbyCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/api/$': typeof ApiSplatRoute
   '/lobby/$code': typeof LobbyCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/api/$': typeof ApiSplatRoute
   '/lobby/$code': typeof LobbyCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/play': typeof PlayRoute
+  '/api/$': typeof ApiSplatRoute
   '/lobby/$code': typeof LobbyCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/play' | '/lobby/$code'
+  fullPaths: '/' | '/play' | '/api/$' | '/lobby/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/play' | '/lobby/$code'
-  id: '__root__' | '/' | '/play' | '/lobby/$code'
+  to: '/' | '/play' | '/api/$' | '/lobby/$code'
+  id: '__root__' | '/' | '/play' | '/api/$' | '/lobby/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PlayRoute: typeof PlayRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   LobbyCodeRoute: typeof LobbyCodeRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lobby/$code': {
       id: '/lobby/$code'
       path: '/lobby/$code'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PlayRoute: PlayRoute,
+  ApiSplatRoute: ApiSplatRoute,
   LobbyCodeRoute: LobbyCodeRoute,
 }
 export const routeTree = rootRouteImport

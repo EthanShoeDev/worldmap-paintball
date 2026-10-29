@@ -5,9 +5,9 @@
   "type": "module",
   "exports": {
     "./api": "./src/api.ts",
+    "./cloudflare": "./src/cloudflare.ts",
     "./handlers": "./src/handlers.ts",
     "./lobby/protocol": "./src/lobby/protocol.ts",
-    "./worker": "./src/worker.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

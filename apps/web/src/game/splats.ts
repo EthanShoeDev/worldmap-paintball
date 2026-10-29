@@ -1,3 +1,4 @@
+import '@tanstack/react-start/client-only';
 import { Array as Arr } from 'effect';
 import { Atom } from 'effect/reactivity';
 import { Quaternion, Vector3 } from 'three';

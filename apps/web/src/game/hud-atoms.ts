@@ -1,7 +1,8 @@
+import '@tanstack/react-start/client-only';
 import { Array as Arr } from 'effect';
 import { Atom } from 'effect/reactivity';
 
-import { connectedGamepads } from './gamepad.ts';
+import { connectedGamepads } from './devices.ts';
 
 const listen = (
   target: EventTarget,

@@ -7,6 +7,7 @@ import {
 } from 'effect/http';
 
 import { GeocoderError, type Place } from './api.ts';
+import { USER_AGENT } from './user-agent.ts';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
@@ -45,10 +46,7 @@ export class Geocoder extends Context.Service<
               format: 'jsonv2',
               limit: 5,
             }),
-            HttpClientRequest.setHeader(
-              'User-Agent',
-              'worldmap-paintball (https://github.com/ethanshumate)',
-            ),
+            HttpClientRequest.setHeader('User-Agent', USER_AGENT),
             HttpClientRequest.acceptJson,
             client.execute,
             Effect.flatMap(
