@@ -1,17 +1,24 @@
 import { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Effect, flow, Option, Schema } from 'effect';
 
+import { weaponIds } from '../tuning.ts';
+
 export const Vec3 = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite]);
 export type Vec3 = typeof Vec3.Type;
 
+export const WeaponId = Schema.Literals(weaponIds);
+export type WeaponId = typeof WeaponId.Type;
+
 // Client to host on the unreliable `state` channel, ~20 Hz. `position` is the
-// capsule centre; `yaw` and `pitch` are the camera's, in radians.
+// capsule centre; `yaw` and `pitch` are the camera's, in radians. `weapon` is
+// the one in hand, so others draw it.
 export const PlayerState = Schema.Struct({
   position: Vec3,
   velocity: Vec3,
   yaw: Schema.Finite,
   pitch: Schema.Finite,
   firing: Schema.Boolean,
+  weapon: WeaponId,
 });
 export type PlayerState = typeof PlayerState.Type;
 
@@ -37,11 +44,24 @@ export const WorldSnapshot = Schema.Struct({
 export type WorldSnapshot = typeof WorldSnapshot.Type;
 
 // Reliable `events` channel. Clients send `Shot` and `Hit` to the host; the
-// host relays `Shot` and sends the rest. `respawnInMs` is relative because
+// host relays `Shot` and sends the rest. A `Shot` is everything a peer needs
+// to replay its balls with its weapon's spec: `origin` is the muzzle, `dir`
+// the aim before spread, and `seed` draws every pellet's spread. `respawnInMs` is relative because
 // peers' clocks are not synchronised.
 export const NetEvent = Schema.TaggedUnion({
-  Shot: { shooter: PlayerId, origin: Vec3, dir: Vec3 },
-  Hit: { shooter: PlayerId, target: PlayerId, point: Vec3 },
+  Shot: {
+    shooter: PlayerId,
+    origin: Vec3,
+    dir: Vec3,
+    weapon: WeaponId,
+    seed: Schema.Int,
+  },
+  Hit: {
+    shooter: PlayerId,
+    target: PlayerId,
+    point: Vec3,
+    weapon: WeaponId,
+  },
   Eliminated: {
     shooter: PlayerId,
     target: PlayerId,

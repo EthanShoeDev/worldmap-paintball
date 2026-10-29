@@ -33,7 +33,8 @@ export const PlayerName = Schema.String.check(
   Schema.isBetweenLength(1, 16),
 );
 
-// Same bounds as `GET /arenas`, so a lobby location always bakes.
+// Same bounds as `GET /arenas`. The lobby also refuses places outside
+// ./coverage, so a lobby location always bakes.
 export const Location = Schema.Struct({
   lat: Schema.Finite.check(Schema.isBetween({ minimum: -85, maximum: 85 })),
   lon: Schema.Finite.check(Schema.isBetween({ minimum: -180, maximum: 180 })),
@@ -94,6 +95,7 @@ export const RejectReason = Schema.Literals([
   'PlayersNotReady',
   'MatchInProgress',
   'MatchNotStarted',
+  'OutsideCoverage',
   'UnknownPeer',
   'PeerNotHost',
   'InvalidMessage',

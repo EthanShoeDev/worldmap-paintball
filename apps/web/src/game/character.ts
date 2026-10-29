@@ -6,7 +6,7 @@ import {
 } from '@react-three/rapier';
 
 import type { Intent } from './intent.ts';
-import { bodyHalfHeight, bodyRadius, fireInterval } from './tuning.ts';
+import { bodyHalfHeight, bodyRadius } from './tuning.ts';
 
 const walkSpeed = 4.5;
 const sprintSpeed = 7.5;
@@ -24,28 +24,25 @@ const groundRayGroups = interactionGroups(arenaGroup, [arenaGroup]);
 export interface CharacterView {
   yaw: number;
   pitch: number;
-  cooldown: number;
 }
 
 export const toVec3 = ({ x, y, z }: { x: number; y: number; z: number }) =>
   [x, y, z] as const;
 
-// One frame of a capsule character, human or bot: look, move, jump and the
-// fire cooldown. Returns whether it fires this frame.
+// One frame of a capsule character, human or bot: look, move and jump. Its
+// loadout decides when it fires.
 export const stepCharacter = ({
   body,
   physics: { world, rapier },
   view,
   intent,
   alive,
-  dt,
 }: {
   readonly body: RapierRigidBody;
   readonly physics: ReturnType<typeof useRapier>;
   readonly view: CharacterView;
   readonly intent: Intent;
   readonly alive: boolean;
-  readonly dt: number;
 }) => {
   view.yaw -= intent.look[0];
   view.pitch = Math.max(
@@ -74,8 +71,4 @@ export const stepCharacter = ({
     },
     true,
   );
-  view.cooldown = Math.max(0, view.cooldown - dt);
-  const fires = alive && intent.fire && view.cooldown === 0;
-  if (fires) view.cooldown = fireInterval;
-  return fires;
 };

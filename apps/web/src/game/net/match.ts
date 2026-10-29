@@ -1,9 +1,26 @@
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr } from 'effect';
 
-import { fireRange, respawnDelayMs, spawnHeight } from '../tuning.ts';
+import { reachable } from '../projectile.ts';
+import {
+  fairnessTuning,
+  respawnDelayMs,
+  spawnHeight,
+  type WeaponId,
+  weapons,
+} from '../tuning.ts';
 import { distance } from './hit-test.ts';
 import { Net, type NetEvent, type PlayerState, type Vec3 } from './protocol.ts';
+
+// How fast one player has fired one weapon, in host milliseconds. `due` is
+// when the next shot may leave at the weapon's fire interval, kept as a
+// virtual schedule so a burst that arrives bunched still fits; `rounds` counts
+// shots since the last pause long enough to reload.
+export interface Trigger {
+  readonly due: number;
+  readonly last: number;
+  readonly rounds: number;
+}
 
 // The host's view of the match. Pure: every function returns a new match.
 export interface Slot {
@@ -12,11 +29,13 @@ export interface Slot {
   readonly respawnAt: number | undefined;
   readonly score: number;
   readonly deaths: number;
+  readonly triggers: ReadonlyMap<WeaponId, Trigger>;
 }
 
 export type Match = ReadonlyMap<PlayerId, Slot>;
 
 export type HitEvent = typeof Net.Hit.Type;
+export type ShotEvent = typeof Net.Shot.Type;
 
 const freshSlot: Slot = {
   state: undefined,
@@ -24,6 +43,7 @@ const freshSlot: Slot = {
   respawnAt: undefined,
   score: 0,
   deaths: 0,
+  triggers: new Map(),
 };
 
 export const makeMatch = (ids: ReadonlyArray<PlayerId>): Match =>
@@ -45,10 +65,69 @@ export const receiveState = (
 };
 
 // The shooter, target and point come from the shooter's view, up to a round
-// trip behind the host's, so the point only has to be near the target.
+// trip behind the host's, so the point only has to be near the target, and
+// near somewhere the weapon's ball can fly from the shooter.
 export const hitTolerance = 3;
 
-export const validateHit = (match: Match, from: PlayerId, hit: HitEvent) => {
+// Whether a shot fits its weapon: no faster than the fire interval, and no
+// more rounds than a pod holds without a pause long enough to reload. Both
+// allow `fairnessTuning.jitter` for messages that arrive bunched.
+export const checkTrigger = (
+  trigger: Trigger | undefined,
+  weapon: WeaponId,
+  now: number,
+) => {
+  const { fireInterval, magazine, reloadTime } = weapons[weapon];
+  const { jitter } = fairnessTuning;
+  const reloaded =
+    trigger === undefined || now - trigger.last >= reloadTime * 1000 - jitter;
+  const rounds = reloaded ? 0 : trigger.rounds;
+  if (trigger && trigger.due - now > jitter) {
+    return { rejected: 'TooFast', trigger } as const;
+  }
+  if (rounds >= magazine) {
+    return { rejected: 'MagazineEmpty', trigger } as const;
+  }
+  const next: Trigger = {
+    due: Math.max(trigger?.due ?? now, now) + fireInterval * 1000,
+    last: now,
+    rounds: rounds + 1,
+  };
+  return { rejected: undefined, trigger: next };
+};
+
+// Records a shot on the host, or says why it is rejected. A rejected shot
+// is not relayed, and its balls can't score.
+export const applyShot = (
+  match: Match,
+  from: PlayerId,
+  shot: Omit<ShotEvent, '_tag'>,
+  now: number,
+) => {
+  const slot = match.get(shot.shooter);
+  const refuse = <R extends string>(rejected: R) => ({ match, rejected });
+  if (shot.shooter !== from) return refuse('NotShooter');
+  if (!slot) return refuse('UnknownPlayer');
+  if (!slot.alive) return refuse('ShooterDead');
+  const { rejected, trigger } = checkTrigger(
+    slot.triggers.get(shot.weapon),
+    shot.weapon,
+    now,
+  );
+  if (rejected !== undefined) return refuse(rejected);
+  const triggers = new Map(slot.triggers).set(shot.weapon, trigger);
+  return {
+    match: new Map(match).set(shot.shooter, { ...slot, triggers }),
+    rejected,
+  };
+};
+
+export const validateHit = (
+  match: Match,
+  from: PlayerId,
+  hit: HitEvent,
+  now: number,
+) => {
   if (hit.shooter !== from) return 'NotShooter';
   if (hit.shooter === hit.target) return 'SelfHit';
   const shooter = match.get(hit.shooter);
@@ -56,7 +135,17 @@ export const validateHit = (match: Match, from: PlayerId, hit: HitEvent) => {
   if (!shooter?.state || !target?.state) return 'UnknownPlayer';
   if (!shooter.alive) return 'ShooterDead';
   if (!target.alive) return 'TargetDead';
-  if (distance(shooter.state.position, hit.point) > fireRange + hitTolerance) {
+  const weapon = weapons[hit.weapon];
+  // A hit rides the same ordered channel as its shot, so it must follow an
+  // accepted shot of the same weapon by no more than the ball's flight.
+  const fired = shooter.triggers.get(hit.weapon);
+  if (
+    !fired ||
+    now - fired.last > weapon.lifetime * 1000 + fairnessTuning.hitLag
+  ) {
+    return 'NoShot';
+  }
+  if (!reachable(weapon, shooter.state.position, hit.point, hitTolerance)) {
     return 'OutOfRange';
   }
   if (distance(target.state.position, hit.point) > hitTolerance) {
@@ -75,7 +164,7 @@ export const applyHit = (
   hit: HitEvent,
   now: number,
 ) => {
-  const rejected = validateHit(match, from, hit);
+  const rejected = validateHit(match, from, hit, now);
   const shooter = match.get(hit.shooter);
   const target = match.get(hit.target);
   if (rejected !== undefined || !shooter || !target) {
@@ -144,6 +233,8 @@ export const respawnDue = (
       ...slot,
       alive: true,
       respawnAt: undefined,
+      // Ammo refills on respawn.
+      triggers: new Map(),
       state: slot.state && { ...slot.state, position, velocity: [0, 0, 0] },
     });
     outbox.push(Net.Respawn.make({ player: id, position }));

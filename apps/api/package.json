@@ -9,7 +9,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "dev": "bun --watch src/bin.ts",
+    "dev": "varlock run --path ../.. -- bun --watch src/bin.ts",
+    "footprints:build": "bun scripts/footprints/build-tiles.ts",
     "build": "tsdown",
     "start": "bun dist/bin.mjs"
   },
@@ -21,7 +22,8 @@
     "alchemy": "catalog:",
     "effect": "catalog:",
     "fast-png": "catalog:",
-    "pbf": "catalog:"
+    "pbf": "catalog:",
+    "varlock": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

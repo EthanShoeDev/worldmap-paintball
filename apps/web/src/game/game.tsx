@@ -1,11 +1,11 @@
 import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomSuspense, useAtomValue } from '@effect/atom-react';
-import { Bvh, Sky } from '@react-three/drei';
+import { Bvh, PerformanceMonitor, Sky, Stats } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import type { Arena } from '@worldmap-paintball/api-contract';
 import { Array as Arr } from 'effect';
-import { type ReactNode, Suspense, useMemo, useRef } from 'react';
+import { type ReactNode, Suspense, useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
 
 import { arenaAtom } from '../api-client.ts';
@@ -15,19 +15,33 @@ import { spawnPoint } from './arena-meshes.ts';
 import { ArenaScene, ArenaTrees } from './arena-scene.tsx';
 import { roadGraph } from './bot-nav.ts';
 import { BotPlayer } from './bot-player.tsx';
-import { gamepadNamesAtom, pointerLockedAtom } from './hud-atoms.ts';
+import { CombatHud } from './combat-hud.tsx';
+import { lockPointer } from './devices.ts';
+import { gamepadNamesAtom, hitMarkerAtom } from './hud-atoms.ts';
 import { imageryAtom, photoOf } from './imagery.ts';
 import { MatchHud } from './match-hud.tsx';
 import { colorOf, type NetGame, netGameAtom } from './net/net-game.ts';
 import { practiceGameAtom } from './net/practice.ts';
 import type { Vec3 } from './net/protocol.ts';
+import { PaintballFlights } from './paintball-flights.tsx';
+import { launch, type Paintballs, type Volley } from './paintballs.ts';
+import { PauseMenu } from './pause-menu.tsx';
 import { Player } from './player.tsx';
-import { RemotePlayers, RemoteShots } from './remote-players.tsx';
-import { traceShot } from './shots.ts';
+import { RemotePlayers } from './remote-players.tsx';
+import { renderDpr } from './render-scale.ts';
+import { renderScaleAtom } from './render-settings.ts';
+import { aimShot } from './shots.ts';
 import { SplatDecals } from './splat-decals.tsx';
-import { appendSplat, splatsAtom } from './splats.ts';
+import { soloPaint } from './splats.ts';
 import { heightAt } from './terrain.ts';
-import { spawnHeight } from './tuning.ts';
+import {
+  playerColor,
+  renderTuning,
+  spawnHeight,
+  viewFov,
+  type WeaponId,
+  weapons,
+} from './tuning.ts';
 
 const fogColor = '#c9dcec';
 
@@ -38,26 +52,50 @@ const World = ({
   readonly arena: Arena;
   readonly net: NetGame['Service'] | undefined;
 }) => {
-  const setSplats = useAtomSet(splatsAtom);
   const targets = useRef<Group>(null);
+  const balls = useRef<Paintballs>([]);
+  const shots = useRef(0);
+  const setHits = useAtomSet(hitMarkerAtom);
   const sun = [arena.halfSize * 0.5, 200, arena.halfSize * 0.3] as const;
   const [x, z] = spawnPoint(arena.roads);
   const graph = useMemo(
     () => roadGraph(arena.roads, arena.halfSize),
     [arena.roads, arena.halfSize],
   );
-  const fire = (origin: Vec3, dir: Vec3) => {
-    const { surface, player } = traceShot(
+  const launchVolley = (volley: Volley) => {
+    launch(balls.current, volley);
+  };
+  const fire = (eye: Vec3, dir: Vec3, muzzle: Vec3, weapon: WeaponId) => {
+    shots.current += 1;
+    const shot = aimShot(
       targets.current,
-      origin,
+      weapons[weapon],
+      eye,
       dir,
+      muzzle,
       net?.targets(net.you) ?? [],
     );
-    if (surface) {
-      const color = net && colorOf(net, net.you);
-      setSplats((splats) => appendSplat(splats, surface, color));
+    const volley = { ...shot, weapon, seed: shots.current };
+    if (!net) {
+      launchVolley({
+        ...volley,
+        shooter: undefined,
+        color: soloPaint(shots.current),
+        onHit: undefined,
+      });
+      return;
     }
-    net?.fire(net.you, origin, dir, player);
+    const shooter = net.you;
+    net.fire({ ...volley, shooter });
+    launchVolley({
+      ...volley,
+      shooter,
+      color: colorOf(net, shooter),
+      onHit: (hit) => {
+        setHits((count) => count + 1);
+        net.hit({ shooter, target: hit.target, point: hit.point, weapon });
+      },
+    });
   };
   return (
     <>
@@ -86,6 +124,7 @@ const World = ({
             net?.spawnOf(net.you) ?? [x, heightAt(arena, x, z) + spawnHeight, z]
           }
           local={net}
+          color={net ? colorOf(net, net.you) : playerColor(0)}
           onFire={fire}
         />
         {net?.isHost === true &&
@@ -97,15 +136,12 @@ const World = ({
               graph={graph}
               arena={targets}
               seed={index + 1}
+              launch={launchVolley}
             />
           ))}
       </Physics>
-      {net && (
-        <>
-          <RemotePlayers net={net} />
-          <RemoteShots net={net} arena={targets} />
-        </>
-      )}
+      {net && <RemotePlayers net={net} />}
+      <PaintballFlights balls={balls} arena={targets} net={net} />
       <SplatDecals />
     </>
   );
@@ -113,29 +149,29 @@ const World = ({
 
 const Hud = ({
   arena,
+  dpr,
+  onResume,
   children,
 }: {
   readonly arena: Arena;
+  readonly dpr: number;
+  readonly onResume: () => void;
   readonly children?: ReactNode;
 }) => {
-  const locked = useAtomValue(pointerLockedAtom);
   const photo = useAtomValue(imageryAtom(arena), photoOf);
   const gamepads = useAtomValue(gamepadNamesAtom);
   return (
     <div className='pointer-events-none absolute inset-0 text-white'>
-      <div className='absolute top-1/2 left-1/2 size-1.5 -translate-1/2 rounded-full bg-white/90 shadow' />
-      {!locked && (
-        <div className='absolute inset-x-0 top-6 mx-auto w-fit rounded bg-black/60 px-4 py-2 text-sm'>
-          Click to capture the mouse · WASD move · Shift sprint · Space jump ·
-          Click fire · Esc release · or use a gamepad
-        </div>
-      )}
+      <CombatHud />
+      <PauseMenu dpr={dpr} onResume={onResume} />
       {gamepads.length > 0 && (
         <p className='absolute top-2 right-3 text-xs'>
           Gamepad: {Arr.join(gamepads, ', ')}
         </p>
       )}
       {children}
+      {/* stats.js pins itself top-left inline, where the scoreboard is. */}
+      <Stats className='top-auto! bottom-2! left-2!' />
       <ArenaAttribution
         imagery={photo !== undefined}
         terrain={arena.terrain !== undefined}
@@ -153,17 +189,45 @@ const Scene = ({
   readonly arena: Arena;
   readonly net: NetGame['Service'] | undefined;
   readonly practice?: boolean;
-}) => (
-  <>
-    <Canvas shadows camera={{ fov: 75, near: 0.1, far: 2000 }}>
-      <color attach='background' args={[fogColor]} />
-      <Suspense fallback={null}>
-        <World arena={arena} net={net} />
-      </Suspense>
-    </Canvas>
-    <Hud arena={arena}>{net && <MatchHud net={net} practice={practice} />}</Hud>
-  </>
-);
+}) => {
+  const scale = useAtomValue(renderScaleAtom);
+  const [factor, setFactor] = useState(1);
+  const dpr = renderDpr(scale, window.devicePixelRatio, factor);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  return (
+    <>
+      <Canvas
+        ref={canvas}
+        shadows
+        dpr={dpr}
+        // Laptops otherwise often hand WebGL the integrated GPU.
+        gl={{ powerPreference: 'high-performance' }}
+        camera={{ fov: viewFov, near: 0.1, far: 2000 }}
+      >
+        {scale === 'auto' && (
+          <PerformanceMonitor
+            factor={1}
+            flipflops={renderTuning.flipflops}
+            onChange={(monitor) => setFactor(monitor.factor)}
+          />
+        )}
+        <color attach='background' args={[fogColor]} />
+        <Suspense fallback={null}>
+          <World arena={arena} net={net} />
+        </Suspense>
+      </Canvas>
+      <Hud
+        arena={arena}
+        dpr={dpr}
+        onResume={() => {
+          if (canvas.current) lockPointer(canvas.current);
+        }}
+      >
+        {net && <MatchHud net={net} practice={practice} />}
+      </Hud>
+    </>
+  );
+};
 
 const SoloGame = ({ coordinates }: { readonly coordinates: Coordinates }) => {
   const arena = useAtomSuspense(arenaAtom(coordinates)).value;

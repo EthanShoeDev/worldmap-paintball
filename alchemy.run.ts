@@ -3,6 +3,7 @@ import * as Alchemy from 'alchemy';
 import { Effect } from 'effect';
 import { ENV } from 'varlock/env';
 
+import { UploadFootprints } from './apps/api/src/footprints-upload.ts';
 import Web from './apps/web/src/worker.server.ts';
 
 // Credentials come from the alchemy profile, and the state store is created
@@ -26,6 +27,7 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const web = yield* Web;
+    yield* UploadFootprints;
     return { web: web.url };
   }),
 );

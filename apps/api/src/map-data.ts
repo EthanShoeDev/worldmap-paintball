@@ -22,6 +22,7 @@ import {
 import type { ArenaBaker } from './arena-baker.ts';
 import { ArenaStore } from './arena-store.ts';
 import {
+  addFootprints,
   BAKE_VERSION,
   bakeArena,
   bakeFeatures,
@@ -29,6 +30,7 @@ import {
   type LatLon,
 } from './bake.ts';
 import { Elevation } from './elevation.ts';
+import { BuildingFootprints } from './footprints.ts';
 import {
   decodeTileFeatures,
   OPENFREEMAP_URL,
@@ -56,10 +58,11 @@ export const ARENA_MAX_AGE = Duration.days(30);
 const MEMORY_CAPACITY = 32;
 const MEMORY_TTL = Duration.hours(1);
 
-// A source that hangs must still leave time for the fallback, and terrain is
-// optional, so neither may hold the bake up for long.
+// A source that hangs must still leave time for the fallback, and terrain and
+// footprints are optional, so none may hold the bake up for long.
 const SOURCE_TIMEOUT = Duration.seconds(15);
 const TERRAIN_TIMEOUT = Duration.seconds(10);
+const FOOTPRINTS_TIMEOUT = Duration.seconds(10);
 
 const isMapDataError = Schema.is(MapDataError);
 
@@ -234,6 +237,41 @@ export class MapData extends Context.Service<
     }),
   );
 
+  // Decorates an upstream MapData with BuildingFootprints wherever its
+  // buildings leave gaps (`addFootprints`), fetched alongside the geometry.
+  // Best-effort like terrain: without them the arena has only OSM buildings.
+  static readonly layerFootprints = Layer.effect(
+    MapData,
+    Effect.gen(function* () {
+      const upstream = yield* MapData;
+      const source = yield* BuildingFootprints;
+
+      const arena = Effect.fn('MapData.arenaWithFootprints')(function* (
+        center: LatLon,
+      ) {
+        const [geometry, footprints] = yield* Effect.all(
+          [
+            upstream.arena(center),
+            source.footprints(bounds(center, HALF_SIZE)).pipe(
+              Effect.timeout(FOOTPRINTS_TIMEOUT),
+              Effect.tapError((error) =>
+                Effect.logWarning(
+                  'Baking without building footprints',
+                  error.message,
+                ),
+              ),
+              Effect.orElseSucceed(() => []),
+            ),
+          ],
+          { concurrency: 'unbounded' },
+        );
+        return addFootprints(geometry, footprints);
+      });
+
+      return MapData.of({ arena });
+    }),
+  );
+
   // Decorates an upstream MapData: concurrent requests for one centre share
   // a single bake, and successful bakes are kept in memory and in the
   // ArenaStore. Failures are never cached, so the next request retries.
@@ -303,19 +341,27 @@ export class MapData extends Context.Service<
       }),
     );
 
-  // Bakes once per centre from OpenFreeMap (Overpass if that fails) with
-  // Terrarium terrain, cached in memory and durably in `store` (memory under
-  // Bun, R2 inside the ArenaBaker Durable Object).
-  static readonly layerBaker = <R>(store: Layer.Layer<ArenaStore, never, R>) =>
+  // Bakes once per centre from OpenFreeMap (Overpass if that fails) plus
+  // `footprints`, with Terrarium terrain, cached in memory and durably in
+  // `store` (memory under Bun, R2 inside the ArenaBaker Durable Object).
+  static readonly layerBaker = <R1, R2>(
+    store: Layer.Layer<ArenaStore, never, R1>,
+    footprints: Layer.Layer<BuildingFootprints, never, R2>,
+  ) =>
     MapData.layerCached.pipe(
       Layer.provide([MapData.layerTerrain, store]),
+      Layer.provide([MapData.layerFootprints, Elevation.layerTerrarium]),
       Layer.provide([
         MapData.layerFallback(MapData.layerOpenFreeMap, MapData.layerOverpass),
-        Elevation.layerTerrarium,
+        footprints,
       ]),
       Layer.provide(FetchHttpClient.layer),
     );
 
-  // The Bun dev server: a single process, so memory is the durable tier.
-  static readonly layer = MapData.layerBaker(ArenaStore.layerMemory);
+  // The Bun and Vite dev servers: a single process, so memory is the durable
+  // tier, and footprints come from a local directory.
+  static readonly layer = MapData.layerBaker(
+    ArenaStore.layerMemory,
+    BuildingFootprints.layerLocal,
+  );
 }

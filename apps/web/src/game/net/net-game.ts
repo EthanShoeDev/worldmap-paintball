@@ -35,7 +35,6 @@ import {
   playerColor,
   spawnHeight,
 } from '../tuning.ts';
-import type { PlayerHit } from './hit-test.ts';
 import {
   interpolatedPoses,
   interpolationSnapshot,
@@ -43,12 +42,14 @@ import {
 } from './interpolation.ts';
 import {
   applyHit,
+  applyShot,
   type HitEvent,
   initialSpawn,
   makeMatch,
   receiveState,
   respawnDue,
   scoresOf,
+  type ShotEvent,
   snapshotOf,
   syncRoster,
 } from './match.ts';
@@ -108,7 +109,7 @@ export const idleMatchView: MatchView = {
 // Kept alive so the final scores outlive the match's peer network.
 export const matchViewAtom = Atom.make(idleMatchView).pipe(Atom.keepAlive);
 
-type ShotEvent = typeof Net.Shot.Type;
+type Fields<E> = Omit<E, '_tag'>;
 
 // A player this browser simulates: `you`, plus the bots on the host.
 interface Local {
@@ -160,14 +161,12 @@ export class NetGame extends Context.Service<
     readonly targets: (
       except: PlayerId,
     ) => ReadonlyArray<readonly [PlayerId, Vec3]>;
-    // Other players' shots since the last call, to paint their splats.
+    // Shots from players not simulated here since the last call, to replay.
     readonly takeShots: () => ReadonlyArray<ShotEvent>;
-    readonly fire: (
-      shooter: PlayerId,
-      origin: Vec3,
-      dir: Vec3,
-      hit: PlayerHit | undefined,
-    ) => void;
+    // A shot leaving the muzzle; the shooter's own simulation of its balls
+    // reports any `hit` when one lands.
+    readonly fire: (shot: Fields<ShotEvent>) => void;
+    readonly hit: (hit: Fields<HitEvent>) => void;
     readonly announceEnd: Effect.Effect<void>;
   }
 >()('@worldmap-paintball/web/game/net/net-game/NetGame') {
@@ -259,7 +258,7 @@ export class NetGame extends Context.Service<
           NetEvent.match(event, {
             Shot: (shot) =>
               Effect.sync(() => {
-                if (shot.shooter !== you) shots.push(shot);
+                if (!locals.has(shot.shooter)) shots.push(shot);
               }),
             Hit: () => Effect.void,
             Eliminated: eliminated,
@@ -313,14 +312,27 @@ export class NetGame extends Context.Service<
           yield* distribute(outbox);
         });
 
+        // Only shots the host accepts are relayed, and only they can score.
+        const hostShot = Effect.fn('NetGame.hostShot')(function* (
+          from: PlayerId,
+          shot: ShotEvent,
+        ) {
+          const now = yield* Clock.currentTimeMillis;
+          const rejected = yield* Ref.modify(matchRef, (match) => {
+            const step = applyShot(match, from, shot, now);
+            return [step.rejected, step.match] as const;
+          });
+          if (rejected !== undefined) {
+            return yield* Effect.logDebug('Rejected shot', { from, rejected });
+          }
+          yield* distribute([shot]);
+        });
+
         const hostHandle = (from: PlayerId, event: NetEvent) =>
           NetEvent.matchOrElse(
             event,
             {
-              Shot: (shot) =>
-                shot.shooter === from
-                  ? distribute([shot])
-                  : Effect.logWarning('Dropped spoofed shot', from),
+              Shot: (shot) => hostShot(from, shot),
               Hit: (hit) => hostHit(from, hit),
             },
             (other) =>
@@ -438,31 +450,19 @@ export class NetGame extends Context.Service<
         );
 
         // Only players simulated here can fire, so a client fires as `you`.
-        const fire = Effect.fn('NetGame.fire')(function* (
-          shooter: PlayerId,
-          origin: Vec3,
-          dir: Vec3,
-          hit: PlayerHit | undefined,
+        const send = Effect.fn('NetGame.send')(function* (
+          event: ShotEvent | HitEvent,
         ) {
-          if (locals.get(shooter)?.alive !== true) return;
-          const events: ReadonlyArray<NetEvent> = [
-            Net.Shot.make({ shooter, origin, dir }),
-            ...(hit
-              ? [
-                  Net.Hit.make({
-                    shooter,
-                    target: hit.target,
-                    point: hit.point,
-                  }),
-                ]
-              : []),
-          ];
-          yield* Effect.forEach(
-            events,
-            (event) =>
-              isHost ? hostHandle(shooter, event) : broadcastEvent(event),
-            { discard: true },
-          );
+          yield* isHost
+            ? hostHandle(event.shooter, event)
+            : broadcastEvent(event);
+        });
+
+        const fire = Effect.fn('NetGame.fire')(function* (
+          shot: Fields<ShotEvent>,
+        ) {
+          if (locals.get(shot.shooter)?.alive !== true) return;
+          yield* send(Net.Shot.make(shot));
         });
 
         const controls = (id: PlayerId) => {
@@ -517,8 +517,11 @@ export class NetGame extends Context.Service<
             shots = [];
             return taken;
           },
-          fire: (shooter, origin, dir, hit) => {
-            run(fire(shooter, origin, dir, hit));
+          fire: (shot) => {
+            run(fire(shot));
+          },
+          hit: (hit) => {
+            run(send(Net.Hit.make(hit)));
           },
           announceEnd,
         });

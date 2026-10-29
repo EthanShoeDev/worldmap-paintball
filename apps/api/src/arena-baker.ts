@@ -4,6 +4,7 @@ import { Context, Duration, Effect, Layer } from 'effect';
 
 import { ArenaStore } from './arena-store.ts';
 import type { LatLon } from './bake.ts';
+import { BuildingFootprints } from './footprints.ts';
 import { ARENA_MAX_AGE, MapData } from './map-data.ts';
 
 interface ArenaBakerShape {
@@ -39,6 +40,13 @@ export const ArenaCache = Cloudflare.R2.Bucket('ArenaCache', {
   ],
 });
 
+// Footprint packs from `bun run footprints:build`, uploaded on deploy by the
+// UploadFootprints Action (src/footprints-upload.ts). They are rebuilt from
+// Microsoft's release rather than expired, and teardown may empty them.
+export const FootprintsBucket = Cloudflare.R2.Bucket('BuildingFootprints', {
+  forceDestroy: true,
+});
+
 // alchemy's PlatformServices imports `effect/Crypto`, which effect 4.1 does not
 // ship, so DurableObjectServices is `any` and `make` would leak `any` into the
 // Worker's requirements. The annotation states the real ones.
@@ -48,18 +56,25 @@ export const ArenaBakerLive: Layer.Layer<
   never,
   Cloudflare.Worker | Cloudflare.Providers
 > = ArenaBaker.make(
-  ArenaCache.pipe(
-    Effect.flatMap(Cloudflare.R2.ReadWriteBucket),
-    Effect.map((bucket) =>
+  Effect.all([
+    ArenaCache.pipe(Effect.flatMap(Cloudflare.R2.ReadWriteBucket)),
+    FootprintsBucket.pipe(Effect.flatMap(Cloudflare.R2.ReadBucket)),
+  ]).pipe(
+    Effect.map(([cache, footprints]) =>
       Effect.gen(function* () {
         const context = yield* Layer.build(
-          MapData.layerBaker(ArenaStore.layerR2(bucket)),
+          MapData.layerBaker(
+            ArenaStore.layerR2(cache),
+            BuildingFootprints.layerR2(footprints),
+          ),
         );
         const mapData = Context.get(context, MapData);
         return { arena: mapData.arena };
       }),
     ),
-    // oxlint-disable-next-line effecttsgo/strict-effect-provide -- the Durable Object definition is an entry point; alchemy's examples provide bindings here
-    Effect.provide(Cloudflare.R2.ReadWriteBucketBinding),
+    Effect.provide([
+      Cloudflare.R2.ReadWriteBucketBinding,
+      Cloudflare.R2.ReadBucketBinding,
+    ]),
   ),
 );

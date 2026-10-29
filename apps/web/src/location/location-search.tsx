@@ -1,17 +1,17 @@
 import { useAtom, useAtomSet } from '@effect/atom-react';
+import { outsideCoverageMessage } from '@worldmap-paintball/api-contract/coverage';
 import { Array as Arr, Cause, String as Str } from 'effect';
 import { AsyncResult } from 'effect/reactivity';
 import { useState } from 'react';
 
+import { apiErrorMessage } from '../api-client.ts';
 import { parseCoordinates } from './coordinates.ts';
 import { placesAtom, selectionAtom } from './location-atoms.ts';
 
 const minQueryLength = 3;
 
-const failureMessage = (cause: Cause.Cause<unknown>) => {
-  const error = Cause.squash(cause);
-  return error instanceof Error ? error.message : String(error);
-};
+const failureMessage = (cause: Cause.Cause<unknown>) =>
+  apiErrorMessage(Cause.squash(cause));
 
 export const LocationSearch = () => {
   const [query, setQuery] = useState('');
@@ -62,11 +62,17 @@ export const LocationSearch = () => {
             {Arr.map(places.value, (place) => (
               <li key={`${place.lat},${place.lon}`}>
                 <button
-                  className='w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100'
+                  className='w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-transparent'
                   type='button'
+                  disabled={!place.covered}
                   onClick={() => select({ ...place, flyTo: true })}
                 >
                   {place.label}
+                  {!place.covered && (
+                    <span className='block text-xs'>
+                      {outsideCoverageMessage}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}

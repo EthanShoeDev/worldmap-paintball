@@ -2,6 +2,10 @@ import '@tanstack/react-start/client-only';
 import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  isCovered,
+  outsideCoverageMessage,
+} from '@worldmap-paintball/api-contract/coverage';
+import {
   type Lobby,
   MAX_PLAYERS,
   type PlayerId,
@@ -107,6 +111,8 @@ const LocationEditor = ({ onDone }: { readonly onDone: () => void }) => {
   const selection = useAtomValue(selectionAtom);
   const send = useAtomSet(sendLobbyAtom);
   const warmArena = useAtomSet(warmArenaAtom);
+  const covered =
+    selection !== undefined && isCovered(selection.lat, selection.lon);
   return (
     <div className='flex flex-col gap-3'>
       <LocationSearch />
@@ -117,9 +123,9 @@ const LocationEditor = ({ onDone }: { readonly onDone: () => void }) => {
         <button
           className='flex-1 rounded bg-slate-800 px-4 py-2 font-semibold text-white disabled:opacity-50'
           type='button'
-          disabled={!selection}
+          disabled={!covered}
           onClick={() => {
-            if (!selection) return;
+            if (!selection || !covered) return;
             const location = toLobbyLocation(selection);
             warmArena(location);
             send(lobbyMessages.setLocation(location));
@@ -136,6 +142,9 @@ const LocationEditor = ({ onDone }: { readonly onDone: () => void }) => {
           Cancel
         </button>
       </div>
+      {selection && !covered && (
+        <p className='text-sm text-red-600'>{outsideCoverageMessage}</p>
+      )}
       <p className='text-xs text-slate-500'>
         Changing the location clears everyone&apos;s ready flag.
       </p>

@@ -23,6 +23,7 @@ import { arenaGeometries } from './arena-meshes.ts';
 import { paintGround } from './ground-texture.ts';
 import { imageryAtom, photoOf } from './imagery.ts';
 import { heightRange } from './terrain.ts';
+import { canopyCover } from './tree-cover.ts';
 import { scatterTrees, type Tree } from './trees.ts';
 
 const wallHeight = 40;
@@ -158,11 +159,19 @@ const Instances = ({
   ) : null;
 };
 
+const canopyOf = (arena: Arena, photo: HTMLCanvasElement | undefined) => {
+  const pixels = photo
+    ?.getContext('2d')
+    ?.getImageData(0, 0, photo.width, photo.height);
+  return pixels && canopyCover(pixels, arena);
+};
+
 // Outside the raycast group: shots and sight lines pass through trees, as
 // bodies do.
 export const ArenaTrees = ({ arena }: { readonly arena: Arena }) => {
+  const photo = useAtomValue(imageryAtom(arena), photoOf);
   const { trunks, conifers, broadleaves } = useMemo(() => {
-    const trees = scatterTrees(arena);
+    const trees = scatterTrees(arena, canopyOf(arena, photo));
     return {
       trunks: Arr.map(trees, treeMatrix),
       conifers: Arr.map(
@@ -174,7 +183,7 @@ export const ArenaTrees = ({ arena }: { readonly arena: Arena }) => {
         treeMatrix,
       ),
     };
-  }, [arena]);
+  }, [arena, photo]);
   return (
     <>
       <Instances geometry={trunk} color='#6b4f36' matrices={trunks} />

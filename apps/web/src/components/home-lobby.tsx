@@ -1,6 +1,10 @@
 import '@tanstack/react-start/client-only';
 import { useAtom, useAtomSet, useAtomValue } from '@effect/atom-react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import {
+  isCovered,
+  outsideCoverageMessage,
+} from '@worldmap-paintball/api-contract/coverage';
 import { Array as Arr, Option, String as Str } from 'effect';
 import { useState } from 'react';
 
@@ -61,6 +65,7 @@ export const HostActions = () => {
     );
   }
   const location = toLobbyLocation(selection);
+  const covered = isCovered(location.lat, location.lon);
   return (
     <div className='flex flex-col gap-2 rounded border border-slate-200 p-3'>
       <p className='text-sm'>
@@ -73,7 +78,7 @@ export const HostActions = () => {
       <button
         className='rounded bg-rose-600 px-4 py-2 font-semibold text-white disabled:opacity-50'
         type='button'
-        disabled={name.length === 0 || result.waiting}
+        disabled={!covered || name.length === 0 || result.waiting}
         onClick={() => {
           warmArena(location);
           void create({ name, location }).then((code) =>
@@ -83,10 +88,16 @@ export const HostActions = () => {
       >
         {result.waiting ? 'Creating…' : 'Create lobby'}
       </button>
-      {name.length === 0 && (
-        <p className='text-sm text-slate-500'>Enter your name to host.</p>
+      {covered ? (
+        <>
+          {name.length === 0 && (
+            <p className='text-sm text-slate-500'>Enter your name to host.</p>
+          )}
+          <PracticeLinks lat={location.lat} lon={location.lon} />
+        </>
+      ) : (
+        <p className='text-sm text-red-600'>{outsideCoverageMessage}</p>
       )}
-      <PracticeLinks lat={location.lat} lon={location.lon} />
     </div>
   );
 };

@@ -15,7 +15,7 @@ import { LobbyRooms } from '../src/lobby/rooms.ts';
 
 const Client = ClientMessage.cases;
 const CODE = 'ABCDEF';
-const paris = { lat: 48.8584, lon: 2.2945, label: 'Paris' };
+const raleigh = { lat: 35.7796, lon: -78.6382, label: 'Raleigh' };
 const offer = { _tag: 'Offer', sdp: 'v=0' } as const;
 
 const encode = Schema.encodeEffect(ClientMessageJson);
@@ -107,7 +107,7 @@ const lobbyOfThree = Effect.gen(function* () {
   const p1 = yield* connect();
   const hostId = yield* join(
     host,
-    Client.CreateLobby.make({ name: 'Host', location: paris }),
+    Client.CreateLobby.make({ name: 'Host', location: raleigh }),
   );
   const p0Id = yield* join(p0, Client.JoinLobby.make({ name: 'P0' }));
   yield* expectLobby(host);
@@ -188,14 +188,14 @@ describe('LobbyRooms.layerMemory', () => {
       const first = yield* connect();
       yield* join(
         first,
-        Client.CreateLobby.make({ name: 'A', location: paris }),
+        Client.CreateLobby.make({ name: 'A', location: raleigh }),
       );
       yield* first.close;
 
       const second = yield* connect();
       const you: PlayerId = yield* join(
         second,
-        Client.CreateLobby.make({ name: 'B', location: paris }),
+        Client.CreateLobby.make({ name: 'B', location: raleigh }),
       );
       assert.isString(you);
     }).pipe(Effect.provide(LobbyRooms.layerMemory)),
@@ -205,7 +205,7 @@ describe('LobbyRooms.layerMemory', () => {
     Effect.gen(function* () {
       const a = yield* connect('AAAAAA');
       const b = yield* connect('BBBBBB');
-      yield* join(a, Client.CreateLobby.make({ name: 'A', location: paris }));
+      yield* join(a, Client.CreateLobby.make({ name: 'A', location: raleigh }));
       yield* b.send(Client.JoinLobby.make({ name: 'B' }));
       assert.deepStrictEqual(yield* b.receive, {
         _tag: 'Rejected',

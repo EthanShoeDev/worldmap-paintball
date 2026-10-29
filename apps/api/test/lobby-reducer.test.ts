@@ -13,7 +13,8 @@ import { Array, Effect, Exit, Schema } from 'effect';
 import { disconnect, reduce, type Step } from '../src/lobby/reducer.ts';
 
 const Client = ClientMessage.cases;
-const paris = { lat: 48.8584, lon: 2.2945, label: 'Paris' };
+const raleigh = { lat: 35.7796, lon: -78.6382, label: 'Raleigh' };
+const rockHill = { lat: 34.9249, lon: -81.0251, label: 'Rock Hill, SC' };
 const offer = { _tag: 'Offer', sdp: 'v=0' } as const;
 
 const run = (
@@ -27,7 +28,7 @@ const run = (
 
 const hostWithGuests = (count: number) =>
   run([
-    ['host', Client.CreateLobby.make({ name: 'Host', location: paris })],
+    ['host', Client.CreateLobby.make({ name: 'Host', location: raleigh })],
     // `Array.makeBy` always yields at least one element.
     ...Array.take(
       Array.makeBy(
@@ -56,7 +57,7 @@ describe('lobby reducer', () => {
   it('creates a lobby with the creator as host', () => {
     const step = hostWithGuests(0);
     assert.strictEqual(step.lobby?.hostId, 'host');
-    assert.deepStrictEqual(step.lobby?.location, paris);
+    assert.deepStrictEqual(step.lobby?.location, raleigh);
     assert.deepStrictEqual(tags(sentTo(step, 'host')), ['Welcome']);
   });
 
@@ -65,7 +66,7 @@ describe('lobby reducer', () => {
     const step = reduce(
       lobby,
       'other',
-      Client.CreateLobby.make({ name: 'Other', location: paris }),
+      Client.CreateLobby.make({ name: 'Other', location: raleigh }),
     );
     assert.strictEqual(rejection(step, 'other'), 'LobbyExists');
     assert.strictEqual(step.lobby, lobby);
@@ -142,7 +143,7 @@ describe('lobby reducer', () => {
       const [message] = sentTo(step, id);
       assert.strictEqual(message?._tag, 'MatchStarted');
       if (message?._tag === 'MatchStarted') {
-        assert.deepStrictEqual(message.lobby.location, paris);
+        assert.deepStrictEqual(message.lobby.location, raleigh);
       }
     }
   });
@@ -153,20 +154,46 @@ describe('lobby reducer', () => {
       'p0',
       Client.SetReady.make({ ready: true }),
     );
-    const tokyo = { lat: 35.6762, lon: 139.6503 };
+    const charlotte = { lat: 35.2271, lon: -80.8431 };
     const byGuest = reduce(
       ready.lobby,
       'p0',
-      Client.SetLocation.make({ location: tokyo }),
+      Client.SetLocation.make({ location: charlotte }),
     );
     assert.strictEqual(rejection(byGuest, 'p0'), 'NotHost');
     const moved = reduce(
       ready.lobby,
       'host',
-      Client.SetLocation.make({ location: tokyo }),
+      Client.SetLocation.make({ location: charlotte }),
     );
-    assert.deepStrictEqual(moved.lobby?.location, tokyo);
+    assert.deepStrictEqual(moved.lobby?.location, charlotte);
     assert.isFalse(moved.lobby?.players[1]?.ready);
+  });
+
+  it('refuses to create a lobby outside coverage', () => {
+    const step = reduce(
+      undefined,
+      'host',
+      Client.CreateLobby.make({ name: 'Host', location: rockHill }),
+    );
+    assert.isUndefined(step.lobby);
+    assert.strictEqual(rejection(step, 'host'), 'OutsideCoverage');
+  });
+
+  it('refuses to move the lobby outside coverage', () => {
+    const ready = reduce(
+      hostWithGuests(1).lobby,
+      'p0',
+      Client.SetReady.make({ ready: true }),
+    );
+    const step = reduce(
+      ready.lobby,
+      'host',
+      Client.SetLocation.make({ location: rockHill }),
+    );
+    assert.strictEqual(rejection(step, 'host'), 'OutsideCoverage');
+    assert.strictEqual(step.lobby, ready.lobby);
+    assert.lengthOf(step.outbox, 1);
   });
 
   it('migrates the host to the earliest joiner while waiting', () => {

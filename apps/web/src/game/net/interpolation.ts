@@ -5,7 +5,7 @@ import type {
 import { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr, Schema } from 'effect';
 
-import type { Vec3, WorldSnapshot } from './protocol.ts';
+import { type Vec3, WeaponId, type WorldSnapshot } from './protocol.ts';
 
 const turn = Math.PI * 2;
 
@@ -17,6 +17,8 @@ export const wrapAngle = (angle: number) => ((angle % turn) + turn) % turn;
 export const interpolationParameters = 'x y z r(rad) pitch';
 
 // The library interpolates flat entities, so positions are split into x/y/z.
+// It copies fields it doesn't interpolate, like `weapon`, from the newer
+// snapshot.
 export const interpolationSnapshot = (
   id: string,
   time: number,
@@ -31,6 +33,7 @@ export const interpolationSnapshot = (
     z: player.position[2],
     r: wrapAngle(player.yaw),
     pitch: player.pitch,
+    weapon: player.weapon,
   })),
 });
 
@@ -38,6 +41,7 @@ export interface Pose {
   readonly position: Vec3;
   readonly yaw: number;
   readonly pitch: number;
+  readonly weapon: WeaponId;
 }
 
 // The library hands entities back loosely typed; keep the well-formed ones.
@@ -49,6 +53,7 @@ const isPoseEntity = Schema.is(
     z: Schema.Finite,
     r: Schema.Finite,
     pitch: Schema.Finite,
+    weapon: WeaponId,
   }),
 );
 
@@ -56,8 +61,8 @@ export const posesOf = (state: Types.State) =>
   new Map(
     Arr.map(
       Arr.filter(state, isPoseEntity),
-      ({ id, x, y, z, r, pitch }) =>
-        [id, { position: [x, y, z] as const, yaw: r, pitch }] as const,
+      ({ id, x, y, z, r, pitch, weapon }) =>
+        [id, { position: [x, y, z] as const, yaw: r, pitch, weapon }] as const,
     ),
   );
 

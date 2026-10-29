@@ -88,6 +88,7 @@
     "changeset:version": "changeset version && bun install --lockfile-only",
     "update:all": "nlx taze major -r -I",
     "update:nix-flake": "nix flake update",
+    "footprints:build": "bun run --cwd apps/api footprints:build",
     "infra:dev": "varlock run -- alchemy dev",
     "infra:plan": "varlock run -- alchemy plan",
     "infra:deploy": "varlock run -- alchemy deploy",

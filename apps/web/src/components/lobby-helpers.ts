@@ -1,3 +1,4 @@
+import { outsideCoverageMessage } from '@worldmap-paintball/api-contract/coverage';
 import type {
   Lobby,
   RejectReason,
@@ -47,6 +48,7 @@ const rejectionMessages: Record<RejectReason, string> = {
   MatchInProgress:
     'A match is already running in that lobby. Try again after it ends.',
   MatchNotStarted: 'The match has not started yet.',
+  OutsideCoverage: `${outsideCoverageMessage}. Pick a place there.`,
   UnknownPeer: 'That player is not in the lobby.',
   PeerNotHost: 'Players can only connect to the host.',
   InvalidMessage: 'The server did not accept that request.',

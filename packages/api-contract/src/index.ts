@@ -51,10 +51,23 @@ export class MapDataError extends Schema.TaggedError<
   { readonly brand: unique symbol }
 >()('MapDataError', { message: Schema.String }, { httpApiStatus: 502 }) {}
 
+// `covered`: whether arenas and lobbies can use the place (see ./coverage).
+// The location is valid but outside every region in ./coverage.
+export class OutsideCoverage extends Schema.TaggedError<
+  OutsideCoverage,
+  { readonly brand: unique symbol }
+>()('OutsideCoverage', { message: Schema.String }, { httpApiStatus: 422 }) {}
+
+export class RateLimited extends Schema.TaggedError<
+  RateLimited,
+  { readonly brand: unique symbol }
+>()('RateLimited', { message: Schema.String }, { httpApiStatus: 429 }) {}
+
 export const Place = Schema.Struct({
   label: Schema.String,
   lat: Schema.Finite,
   lon: Schema.Finite,
+  covered: Schema.Boolean,
 });
 
 export class GeocoderError extends Schema.TaggedError<
@@ -84,7 +97,7 @@ export class ArenasGroup extends HttpApiGroup.make('arenas').add(
       ),
     },
     success: Arena,
-    error: MapDataError,
+    error: [MapDataError, OutsideCoverage, RateLimited],
   }),
 ) {}
 

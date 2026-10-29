@@ -1,3 +1,4 @@
+import { isCovered } from '@worldmap-paintball/api-contract/coverage';
 import {
   ClientMessage,
   type Lobby,
@@ -132,8 +133,10 @@ const asMember = (lobby: Lobby, from: PlayerId, message: ClientMessage) =>
     SetLocation: ({ location }) =>
       hostOnly(lobby, from, () =>
         whileWaiting(lobby, from, () =>
-          // Players agreed to a place; a new place needs a fresh agreement.
-          updated(unready({ ...lobby, location })),
+          isCovered(location.lat, location.lon)
+            ? // Players agreed to a place; a new place needs a fresh agreement.
+              updated(unready({ ...lobby, location }))
+            : reject(lobby, from, 'OutsideCoverage'),
         ),
       ),
     StartMatch: () =>
@@ -177,6 +180,9 @@ const create = (from: PlayerId, message: ClientMessage) =>
     message,
     {
       CreateLobby: ({ name, location }): Step => {
+        if (!isCovered(location.lat, location.lon)) {
+          return reject(undefined, from, 'OutsideCoverage');
+        }
         const created: Lobby = {
           phase: 'waiting',
           hostId: from,

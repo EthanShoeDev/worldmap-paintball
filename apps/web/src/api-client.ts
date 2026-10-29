@@ -1,6 +1,7 @@
 import { createIsomorphicFn } from '@tanstack/react-start';
 import { Api } from '@worldmap-paintball/api-contract';
-import { Context, Effect, Layer, ManagedRuntime } from 'effect';
+import { outsideCoverageMessage } from '@worldmap-paintball/api-contract/coverage';
+import { Context, Effect, Layer, ManagedRuntime, Predicate } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import { Atom } from 'effect/reactivity';
@@ -43,8 +44,21 @@ export const apiRuntime = Atom.runtime(ApiClient.layer);
 // runtime is their entry point.
 const promiseRuntime = ManagedRuntime.make(ApiClient.layer);
 
+// What to tell a person about a failed API call. Rate limits and coverage
+// are expected and worded for people; anything else keeps its own message.
+export const apiErrorMessage = (error: unknown) => {
+  if (Predicate.isTagged(error, 'RateLimited')) {
+    return 'Too many requests, try again in a minute';
+  }
+  if (Predicate.isTagged(error, 'OutsideCoverage')) {
+    return outsideCoverageMessage;
+  }
+  return error instanceof Error ? error.message : 'Unknown error';
+};
+
 // Runs one typed call, the same way on the server and in the browser. A
-// failure rejects the promise.
+// failure rejects the promise with the call's error; `apiErrorMessage` words
+// it.
 export const callApi = <A, E>(
   call: (api: ApiClient['Service']) => Effect.Effect<A, E>,
   options?: { readonly signal?: AbortSignal },

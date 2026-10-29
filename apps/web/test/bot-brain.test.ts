@@ -10,6 +10,7 @@ import {
   eyeOf,
   inView,
   pitchTowards,
+  rearmBot,
   thinkBot,
   turnToward,
   yawTowards,
@@ -17,7 +18,7 @@ import {
 import { roadGraph } from '../src/game/bot-nav.ts';
 import { idleIntent } from '../src/game/intent.ts';
 import type { Vec3 } from '../src/game/net/protocol.ts';
-import { botTuning, fireInterval } from '../src/game/tuning.ts';
+import { botTuning, weaponIds, weapons } from '../src/game/tuning.ts';
 
 const dt = 1 / 60;
 
@@ -59,6 +60,9 @@ const senses = (overrides: Partial<BotSenses> = {}): BotSenses => ({
   yaw: 0,
   pitch: 0,
   alive: true,
+  weapon: weapons.assault,
+  ammo: weapons.assault.magazine,
+  ready: true,
   visible: [],
   ...overrides,
 });
@@ -81,7 +85,8 @@ const simulate = (memory: BotMemory, start: BotSenses, frames: number) => {
 };
 
 // A target 10 m straight ahead (-z) at eye height.
-const ahead = { id: 'alice', eye: eyeOf([0, 1, -10]) };
+const still: Vec3 = [0, 0, 0];
+const ahead = { id: 'alice', eye: eyeOf([0, 1, -10]), velocity: still };
 
 describe('aiming', () => {
   it('aimDirection is the forward of a YXZ camera', () => {
@@ -182,8 +187,8 @@ describe('engage', () => {
       botMemory(1),
       senses({
         visible: [
-          { id: 'far', eye: eyeOf([0, 1, -30]) },
-          { id: 'near', eye: eyeOf([5, 1, -8]) },
+          { id: 'far', eye: eyeOf([0, 1, -30]), velocity: still },
+          { id: 'near', eye: eyeOf([5, 1, -8]), velocity: still },
         ],
       }),
       graph,
@@ -191,6 +196,44 @@ describe('engage', () => {
     );
     assert.strictEqual(memory.mode, 'engage');
     assert.strictEqual(memory.targetId, 'near');
+  });
+
+  it('leads a moving target and aims over the drop at range', () => {
+    // Without aim jitter, which could push both aims past the turn cap.
+    const reacted = {
+      ...botMemory(1),
+      mode: 'engage' as const,
+      targetId: 'alice',
+      seenFor: 5,
+      aimOffset: [0, 0] as const,
+      aimFor: 1,
+    };
+    const look = (eye: Vec3, velocity: Vec3) =>
+      thinkBot(
+        reacted,
+        senses({ visible: [{ id: 'alice', eye, velocity }] }),
+        graph,
+        dt,
+      ).intent.look;
+    const near = eyeOf([0, 1, -10]);
+    const far = eyeOf([0, 1, -40]);
+    // Turning right (toward +x) is a positive look, as the target runs.
+    assert.isAbove(look(far, [6, 0, 0])[0], look(far, still)[0]);
+    assert.isBelow(look(far, [-6, 0, 0])[0], look(far, still)[0]);
+    // Looking up is a negative look; it raises its aim more the further out.
+    const raise = (eye: Vec3) =>
+      look(eye, still)[1] -
+      thinkBot(
+        reacted,
+        senses({
+          weapon: { ...weapons.assault, gravityScale: 0 },
+          visible: [{ id: 'alice', eye, velocity: still }],
+        }),
+        graph,
+        dt,
+      ).intent.look[1];
+    assert.isBelow(raise(far), raise(near));
+    assert.isBelow(raise(near), 0);
   });
 
   it('waits out its reaction time before firing', () => {
@@ -231,7 +274,7 @@ describe('engage', () => {
     const bursts: Array<Array<number>> = [];
     for (const [index, time] of shots.entries()) {
       const gap = time - (shots[index - 1] ?? -Infinity);
-      assert.isAtLeast(gap, fireInterval - 1e-9);
+      assert.isAtLeast(gap, weapons.assault.fireInterval - 1e-9);
       if (gap >= botTuning.burstPause - 1e-9) bursts.push([time]);
       else bursts.at(-1)?.push(time);
     }
@@ -276,5 +319,86 @@ describe('a dead bot', () => {
     assert.strictEqual(memory.mode, 'wander');
     assert.isUndefined(memory.targetId);
     assert.isUndefined(memory.node);
+  });
+});
+
+describe('weapons', () => {
+  it('picks a weapon from the seed, the same every time', () => {
+    const picks = Arr.makeBy(30, (seed) => botMemory(seed + 1).weapon);
+    assert.deepStrictEqual(
+      Arr.makeBy(30, (seed) => botMemory(seed + 1).weapon),
+      picks,
+    );
+    assert.deepStrictEqual(new Set(picks), new Set(weaponIds));
+  });
+
+  it('rearms on respawn from its own seed', () => {
+    const memory = botMemory(5);
+    const rearmed = rearmBot(memory);
+    assert.deepStrictEqual(rearmBot(memory), rearmed);
+    assert.notStrictEqual(rearmed.seed, memory.seed);
+    let current = memory;
+    const picks = Arr.makeBy(30, () => {
+      current = rearmBot(current);
+      return current.weapon;
+    });
+    assert.deepStrictEqual(new Set(picks), new Set(weaponIds));
+  });
+
+  const reacted = {
+    ...botMemory(1),
+    mode: 'engage' as const,
+    targetId: ahead.id,
+    seenFor: 5,
+  };
+  const fires = (overrides: Partial<BotSenses>) =>
+    thinkBot(reacted, senses({ visible: [ahead], ...overrides }), graph, dt)
+      .intent;
+
+  it('fires only when its weapon is ready and loaded', () => {
+    assert.isTrue(fires({}).fire);
+    assert.isFalse(fires({ ready: false }).fire);
+    const empty = fires({ ammo: 0 });
+    assert.isFalse(empty.fire);
+    assert.isTrue(empty.reload);
+  });
+
+  it('holds a shotgun until the target is in its reach', () => {
+    const far = { id: 'alice', eye: eyeOf([0, 1, -40]), velocity: still };
+    const near = { id: 'alice', eye: eyeOf([0, 1, -8]), velocity: still };
+    const shotgun = { weapon: weapons.shotgun, ammo: 8 };
+    assert.isFalse(fires({ ...shotgun, visible: [far] }).fire);
+    assert.isTrue(fires({ ...shotgun, visible: [near] }).fire);
+    assert.isTrue(fires({ visible: [far] }).fire);
+  });
+
+  it('tops up its pod between fights', () => {
+    const wandering = (ammo: number) =>
+      thinkBot(botMemory(1), senses({ ammo }), graph, dt).intent.reload;
+    assert.isTrue(wandering(weapons.assault.magazine - 1));
+    assert.isFalse(wandering(weapons.assault.magazine));
+  });
+
+  it('aims steadier through a scope', () => {
+    const spread = (weapon: typeof weapons.sniper) =>
+      Math.max(
+        ...Arr.makeBy(20, (seed) => {
+          const { memory } = thinkBot(
+            { ...botMemory(seed + 1), mode: 'engage', targetId: ahead.id },
+            senses({ weapon, visible: [ahead] }),
+            graph,
+            dt,
+          );
+          return Math.abs(memory.aimOffset[0]);
+        }),
+      );
+    assert.isAtMost(
+      spread(weapons.sniper),
+      botTuning.aimJitter * botTuning.zoomJitter,
+    );
+    assert.isAbove(
+      spread(weapons.assault),
+      botTuning.aimJitter * botTuning.zoomJitter,
+    );
   });
 });

@@ -3,7 +3,12 @@ import { type Arena, MapDataError } from '@worldmap-paintball/api-contract';
 import { Array as Arr, Effect, Layer } from 'effect';
 import { HttpClient, HttpClientResponse } from 'effect/http';
 
+import type { Footprint } from '../src/bake.ts';
 import { Elevation, ElevationError } from '../src/elevation.ts';
+import {
+  BuildingFootprints,
+  BuildingFootprintsError,
+} from '../src/footprints.ts';
 import { HALF_SIZE, MapData } from '../src/map-data.ts';
 
 const overpassJson = {
@@ -241,6 +246,69 @@ describe('MapData.layerTerrain', () => {
       const error = yield* withTerrain(
         failing('OpenFreeMap: 502').layer,
         flat,
+      ).pipe(Effect.flip);
+      assert.strictEqual(error._tag, 'MapDataError');
+    }),
+  );
+});
+
+const footprintSource = (
+  result: Effect.Effect<ReadonlyArray<Footprint>, BuildingFootprintsError>,
+) =>
+  Layer.succeed(
+    BuildingFootprints,
+    BuildingFootprints.of({ footprints: () => result }),
+  );
+
+const withFootprints = (
+  upstream: Layer.Layer<MapData>,
+  footprints: Effect.Effect<ReadonlyArray<Footprint>, BuildingFootprintsError>,
+) =>
+  arenaFrom(
+    MapData.layerFootprints.pipe(
+      Layer.provide([upstream, footprintSource(footprints)]),
+    ),
+  );
+
+describe('MapData.layerFootprints', () => {
+  // About 11 m square, 100 m north-east of the centre: clear of arenaOf's
+  // buildings.
+  const footprint = {
+    outline: [
+      { lat: 0.0009, lon: 0.0009 },
+      { lat: 0.0009, lon: 0.001 },
+      { lat: 0.001, lon: 0.001 },
+      { lat: 0.001, lon: 0.0009 },
+    ],
+    height: undefined,
+  };
+
+  it.effect('adds the footprints to the arena', () =>
+    Effect.gen(function* () {
+      const result = yield* withFootprints(
+        serving(1).layer,
+        Effect.succeed([footprint]),
+      );
+      assert.strictEqual(result.buildings.length, 2);
+      assert.strictEqual(result.buildings[1]?.height, 6);
+    }),
+  );
+
+  it.effect('bakes OSM buildings alone when footprints fail', () =>
+    Effect.gen(function* () {
+      const result = yield* withFootprints(
+        serving(1).layer,
+        Effect.fail(BuildingFootprintsError.make({ message: 'R2: 500' })),
+      );
+      assert.deepStrictEqual(result, arenaOf(1));
+    }),
+  );
+
+  it.effect('still fails when the geometry fails', () =>
+    Effect.gen(function* () {
+      const error = yield* withFootprints(
+        failing('OpenFreeMap: 502').layer,
+        Effect.succeed([footprint]),
       ).pipe(Effect.flip);
       assert.strictEqual(error._tag, 'MapDataError');
     }),

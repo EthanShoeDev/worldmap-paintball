@@ -29,23 +29,27 @@ export const apiHandler = (request: Request) => {
 // The handler routes by path, so the origin is a placeholder.
 export const inProcessOrigin = 'http://in-process';
 
-// Outside a page request (tests, prerendering) there is no cookie to forward.
-const pageCookie = () => {
+// Outside a page request (tests, prerendering) there are no headers to
+// forward.
+const pageHeader = (name: string) => {
   try {
-    return getRequestHeaders().get('cookie');
+    return getRequestHeaders().get(name);
   } catch {
     return null;
   }
 };
 
 // Server rendering calls the API in this process: no network hop, and no need
-// to know the page's own origin. The page request's cookie goes along, so the
-// API sees the same session as the browser's own requests.
+// to know the page's own origin. The page request's cookie and client IP go
+// along, so the API sees the same session and rate limit key as the
+// browser's own requests.
 export const inProcessFetch = (
   ...args: ConstructorParameters<typeof Request>
 ) => {
   const request = new Request(...args);
-  const cookie = pageCookie();
-  if (cookie !== null) request.headers.set('cookie', cookie);
+  for (const name of ['cookie', 'cf-connecting-ip']) {
+    const value = pageHeader(name);
+    if (value !== null) request.headers.set(name, value);
+  }
   return apiHandler(request);
 };

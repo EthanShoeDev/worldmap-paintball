@@ -1,4 +1,5 @@
-import { Schema } from 'effect';
+import { regions } from '@worldmap-paintball/api-contract/coverage';
+import { Array as Arr, Schema } from 'effect';
 
 // The API serves arenas between ±85° latitude (Web Mercator's usable range).
 export const Coordinates = Schema.Struct({
@@ -35,6 +36,19 @@ export const arenaBounds = ({ lat, lon }: Coordinates, halfSize: number) => {
     north: lat + dLat,
     east: lon + dLon,
   };
+};
+
+// Every covered region's bounding box, grown by `margin` degrees on each side,
+// as [west, south, east, north].
+export const coverageBounds = (margin: number) => {
+  // Mutable, because MapLibre's bounds types are.
+  const bounds: [number, number, number, number] = [
+    Math.min(...Arr.map(regions, ({ bbox }) => bbox[0])) - margin,
+    Math.min(...Arr.map(regions, ({ bbox }) => bbox[1])) - margin,
+    Math.max(...Arr.map(regions, ({ bbox }) => bbox[2])) + margin,
+    Math.max(...Arr.map(regions, ({ bbox }) => bbox[3])) + margin,
+  ];
+  return bounds;
 };
 
 export const arenaSquare = (center: Coordinates, halfSize: number) => {

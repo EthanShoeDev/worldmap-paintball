@@ -1,6 +1,10 @@
 import { assert, describe, it } from '@effect/vitest';
 
-import { arenaSquare, parseCoordinates } from '../src/location/coordinates.ts';
+import {
+  arenaSquare,
+  coverageBounds,
+  parseCoordinates,
+} from '../src/location/coordinates.ts';
 
 describe('parseCoordinates', () => {
   it('accepts comma-separated coordinates', () => {
@@ -42,5 +46,14 @@ describe('arenaSquare', () => {
     const [west, south] = ring?.[0] ?? [];
     assert.closeTo(south ?? Number.NaN, -1, 1e-9);
     assert.closeTo(west ?? Number.NaN, 10 - 110_540 / 111_320, 1e-9);
+  });
+});
+
+describe('coverageBounds', () => {
+  it('frames North Carolina with the margin', () => {
+    const [west, south, east, north] = coverageBounds(1);
+    // Murphy in the far west and Cape Hatteras in the east.
+    assert.isTrue(west < -84 - 1 && east > -75.5 + 1);
+    assert.isTrue(south < 33.85 - 0.9 && north > 36.58 + 0.9);
   });
 });

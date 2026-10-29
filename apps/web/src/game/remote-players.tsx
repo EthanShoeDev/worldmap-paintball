@@ -1,18 +1,32 @@
 import '@tanstack/react-start/client-only';
-import { useAtomSet, useAtomValue } from '@effect/atom-react';
+import { useAtomValue } from '@effect/atom-react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { Array as Arr } from 'effect';
-import { type RefObject, useRef } from 'react';
+import { useRef } from 'react';
 import type { Group, Object3D } from 'three';
 
+import { MarkerModel } from './marker-model.tsx';
 import { colorOf, matchViewAtom, type NetGame } from './net/net-game.ts';
-import { traceShot } from './shots.ts';
-import { appendSplat, splatsAtom } from './splats.ts';
-import { bodyHalfHeight, bodyRadius, eyeOffset } from './tuning.ts';
+import {
+  bodyHalfHeight,
+  bodyRadius,
+  eyeOffset,
+  markerTuning,
+  type WeaponId,
+  weaponIds,
+} from './tuning.ts';
 
 type Net = NetGame['Service'];
+
+const { held } = markerTuning;
+
+interface AvatarParts {
+  readonly body: Group;
+  readonly aim: Object3D;
+  readonly models: ReadonlyArray<readonly [WeaponId, Object3D]>;
+}
 
 const Avatar = ({
   name,
@@ -37,6 +51,16 @@ const Avatar = ({
       <boxGeometry args={[0.32, 0.08, 0.1]} />
       <meshStandardMaterial color='#111827' />
     </mesh>
+    {/* Same transforms as heldMuzzle. */}
+    <group name='aim' position={[...held.pivot]}>
+      <group position={[...held.position]} scale={held.scale}>
+        {Arr.map(weaponIds, (weapon) => (
+          <group key={weapon} name={weapon} visible={false}>
+            <MarkerModel weapon={weapon} color={color} castShadow />
+          </group>
+        ))}
+      </group>
+    </group>
     <Html position-y={eyeOffset + 0.55} center distanceFactor={10}>
       <span
         className='pointer-events-none rounded px-1.5 py-0.5 text-sm font-semibold whitespace-nowrap text-white select-none'
@@ -51,7 +75,7 @@ const Avatar = ({
 // Remote players drawn at their interpolated poses, ~100 ms in the past.
 export const RemotePlayers = ({ net }: { readonly net: Net }) => {
   const present = new Set(useAtomValue(matchViewAtom).present);
-  const avatars = useRef(new Map<PlayerId, Group>());
+  const avatars = useRef(new Map<PlayerId, AvatarParts>());
   const others = Arr.filter(
     net.roster,
     (player) => player.id !== net.you && present.has(player.id),
@@ -59,12 +83,16 @@ export const RemotePlayers = ({ net }: { readonly net: Net }) => {
 
   useFrame(() => {
     const poses = net.updateRemotes();
-    for (const [id, group] of avatars.current) {
+    for (const [id, { body, aim, models }] of avatars.current) {
       const pose = poses.get(id);
-      group.visible = pose !== undefined;
+      body.visible = pose !== undefined;
       if (!pose) continue;
-      group.position.set(...pose.position);
-      group.rotation.set(0, pose.yaw, 0);
+      body.position.set(...pose.position);
+      body.rotation.set(0, pose.yaw, 0);
+      aim.rotation.set(pose.pitch, 0, 0);
+      for (const [weapon, model] of models) {
+        model.visible = weapon === pose.weapon;
+      }
     }
   });
 
@@ -74,41 +102,18 @@ export const RemotePlayers = ({ net }: { readonly net: Net }) => {
       name={player.name}
       color={colorOf(net, player.id)}
       ref={(group) => {
-        if (group) avatars.current.set(player.id, group);
+        const aim = group?.getObjectByName('aim');
+        if (group && aim) {
+          const models = Arr.flatMap(weaponIds, (weapon) => {
+            const model = aim.getObjectByName(weapon);
+            return model ? [[weapon, model] as const] : [];
+          });
+          avatars.current.set(player.id, { body: group, aim, models });
+        }
         return () => {
           avatars.current.delete(player.id);
         };
       }}
     />
   ));
-};
-
-// Paints other players' shots: each is re-traced against this peer's arena
-// and the players it can see, so a shot that hit someone leaves no splat.
-export const RemoteShots = ({
-  net,
-  arena,
-}: {
-  readonly net: Net;
-  readonly arena: RefObject<Object3D | null>;
-}) => {
-  const setSplats = useAtomSet(splatsAtom);
-
-  useFrame(() => {
-    for (const shot of net.takeShots()) {
-      const { surface } = traceShot(
-        arena.current,
-        shot.origin,
-        shot.dir,
-        net.targets(shot.shooter),
-      );
-      if (surface) {
-        setSplats((splats) =>
-          appendSplat(splats, surface, colorOf(net, shot.shooter)),
-        );
-      }
-    }
-  });
-
-  return null;
 };

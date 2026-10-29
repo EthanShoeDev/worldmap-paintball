@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./coverage": "./src/coverage.ts",
     "./lobby": "./src/lobby.ts",
     "./package.json": "./package.json"
   },

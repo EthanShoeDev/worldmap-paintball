@@ -5,10 +5,20 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef } from 'react';
 import { Layer, Map, type MapRef, Source } from 'react-map-gl/maplibre';
 
-import { arenaSquare, type Coordinates, isCoordinates } from './coordinates.ts';
+import {
+  arenaSquare,
+  type Coordinates,
+  coverageBounds,
+  isCoordinates,
+} from './coordinates.ts';
 import { arenaHalfSize, selectionAtom } from './location-atoms.ts';
 
 const style = 'https://tiles.openfreemap.org/styles/liberty';
+
+// Panning stops about 100 km past the covered regions: enough to see the
+// border, not enough to wander off to places arenas cannot be built.
+const maxBounds = coverageBounds(1);
+const initialBounds = coverageBounds(0);
 
 const ArenaSquare = ({ center }: { readonly center: Coordinates }) => (
   <Source type='geojson' data={arenaSquare(center, arenaHalfSize)}>
@@ -53,8 +63,9 @@ export const LocationMap = () => {
       initialViewState={
         selection
           ? { longitude: selection.lon, latitude: selection.lat, zoom: 16 }
-          : { longitude: 0, latitude: 30, zoom: 1.5 }
+          : { bounds: initialBounds }
       }
+      maxBounds={maxBounds}
       mapStyle={style}
       attributionControl={{ compact: false }}
       cursor='crosshair'

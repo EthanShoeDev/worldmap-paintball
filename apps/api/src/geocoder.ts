@@ -19,12 +19,15 @@ const NominatimResponse = Schema.Array(
   }),
 );
 
+// Coverage is the API's concern, so geocoders leave `covered` out.
+export type GeocodedPlace = Omit<typeof Place.Type, 'covered'>;
+
 export class Geocoder extends Context.Service<
   Geocoder,
   {
     readonly search: (
       query: string,
-    ) => Effect.Effect<ReadonlyArray<typeof Place.Type>, GeocoderError>;
+    ) => Effect.Effect<ReadonlyArray<GeocodedPlace>, GeocoderError>;
   }
 >()('@worldmap-paintball/api/geocoder') {
   // Nominatim's usage policy requires an identifying User-Agent and at most

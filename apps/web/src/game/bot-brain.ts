@@ -5,7 +5,14 @@ import { nearestNode, nextNode, type RoadGraph } from './bot-nav.ts';
 import { clampLength, idleIntent, type Intent } from './intent.ts';
 import { distance } from './net/hit-test.ts';
 import type { Vec3 } from './net/protocol.ts';
-import { botTuning, eyeOffset, fireInterval } from './tuning.ts';
+import {
+  botTuning,
+  eyeOffset,
+  paintballTuning,
+  type WeaponId,
+  weaponIds,
+  type WeaponSpec,
+} from './tuning.ts';
 
 // Everything a bot carries between frames. Pure data, so a seed replays it.
 export interface BotMemory {
@@ -23,12 +30,15 @@ export interface BotMemory {
   readonly strafe: number;
   readonly strafeFor: number;
   readonly stuckFor: number;
+  // Drawn at spawn and at every respawn.
+  readonly weapon: WeaponId;
   readonly seed: number;
 }
 
 export interface SeenPlayer {
   readonly id: PlayerId;
   readonly eye: Vec3;
+  readonly velocity: Vec3;
 }
 
 export interface BotSenses {
@@ -37,6 +47,11 @@ export interface BotSenses {
   readonly yaw: number;
   readonly pitch: number;
   readonly alive: boolean;
+  // The weapon in hand, its rounds left, and whether it is neither being
+  // swapped nor reloaded.
+  readonly weapon: WeaponSpec;
+  readonly ammo: number;
+  readonly ready: boolean;
   readonly visible: ReadonlyArray<SeenPlayer>;
 }
 
@@ -70,10 +85,14 @@ const burstSize = (roll: number) => {
   return min + Math.floor(roll * (max - min + 1));
 };
 
+const weaponOf = (roll: number) =>
+  weaponIds[Math.floor(roll * weaponIds.length)] ?? weaponIds[0];
+
 export const botMemory = (seed: number) => {
   // Small seeds give small first draws, so skip one.
   const [, warm] = nextRandom((Math.abs(Math.trunc(seed)) % (modulus - 1)) + 1);
-  const [roll, next] = nextRandom(warm);
+  const [roll, armed] = nextRandom(warm);
+  const [pick, next] = nextRandom(armed);
   const memory: BotMemory = {
     mode: 'wander',
     node: undefined,
@@ -88,9 +107,17 @@ export const botMemory = (seed: number) => {
     strafe: 1,
     strafeFor: 0,
     stuckFor: 0,
+    weapon: weaponOf(pick),
     seed: next,
   };
   return memory;
+};
+
+// A fresh weapon for a respawn, from the bot's own seed.
+export const rearmBot = (memory: BotMemory) => {
+  const [pick, seed] = nextRandom(memory.seed);
+  const rearmed: BotMemory = { ...memory, weapon: weaponOf(pick), seed };
+  return rearmed;
 };
 
 // The signed shortest turn from one angle to another, in (-π, π].
@@ -201,12 +228,13 @@ const engage = (
   }
   next.seenFor += dt;
   next.aimFor -= dt;
+  const { weapon } = senses;
   if (next.aimFor <= 0) {
+    const jitter =
+      botTuning.aimJitter *
+      (weapon.zoomFov === undefined ? 1 : botTuning.zoomJitter);
     next.aimFor = botTuning.jitterInterval;
-    next.aimOffset = [
-      (roll() * 2 - 1) * botTuning.aimJitter,
-      (roll() * 2 - 1) * botTuning.aimJitter,
-    ];
+    next.aimOffset = [(roll() * 2 - 1) * jitter, (roll() * 2 - 1) * jitter];
   }
   next.strafeFor -= dt;
   if (next.strafeFor <= 0) {
@@ -214,10 +242,15 @@ const engage = (
     if (roll() < 0.5) next.strafe = -next.strafe;
   }
 
+  // Leads a moving target by the ball's flight time and aims over the drop.
+  const range = distance(eye, target.eye);
+  const flight = range / weapon.muzzleSpeed;
+  const drop =
+    0.5 * paintballTuning.gravity * weapon.gravityScale * flight * flight;
   const aimPoint = [
-    target.eye[0],
-    target.eye[1] - botTuning.aimDrop,
-    target.eye[2],
+    target.eye[0] + target.velocity[0] * flight,
+    target.eye[1] - botTuning.aimDrop + drop,
+    target.eye[2] + target.velocity[2] * flight,
   ] as const;
   const desiredYaw = yawTowards(eye, aimPoint) + next.aimOffset[0];
   const desiredPitch = pitchTowards(eye, aimPoint) + next.aimOffset[1];
@@ -230,15 +263,20 @@ const engage = (
   const fire =
     next.seenFor >= next.reaction &&
     aimError < botTuning.aimThreshold &&
-    next.pauseFor === 0;
+    next.pauseFor === 0 &&
+    senses.ready &&
+    senses.ammo > 0 &&
+    range <= weapon.muzzleSpeed * weapon.lifetime;
   if (fire) {
     next.burstLeft -= 1;
-    next.pauseFor = next.burstLeft > 0 ? fireInterval : botTuning.burstPause;
+    next.pauseFor =
+      next.burstLeft > 0
+        ? weapon.fireInterval
+        : Math.max(botTuning.burstPause, weapon.fireInterval);
     if (next.burstLeft <= 0) next.burstLeft = burstSize(roll());
   }
 
-  const [near, far] = botTuning.engageDistance;
-  const range = distance(eye, target.eye);
+  const [near, far] = botTuning.engageDistance[next.weapon];
   return {
     ...idleIntent,
     move: clampLength([
@@ -247,6 +285,7 @@ const engage = (
     ]),
     look: look(senses, yaw, pitch),
     fire,
+    reload: senses.ammo === 0,
   };
 };
 
@@ -283,9 +322,10 @@ export const thinkBot = (
   };
   const step = { next, senses, roll, maxStep: botTuning.turnRate * dt, dt };
   const eye = eyeOf(senses.position);
+  // Tops up between fights, and when empty in one.
   const intent: Intent = Arr.isReadonlyArrayNonEmpty(senses.visible)
     ? engage(step, eye, Arr.min(senses.visible, byDistanceFrom(eye)))
-    : wander(step, graph);
+    : { ...wander(step, graph), reload: senses.ammo < senses.weapon.magazine };
   const thought: BotMemory = next;
   return { intent, memory: thought };
 };

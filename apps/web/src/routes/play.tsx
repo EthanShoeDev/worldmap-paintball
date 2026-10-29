@@ -4,10 +4,14 @@ import {
   type SearchSchemaInput,
   createFileRoute,
 } from '@tanstack/react-router';
+import { isCovered } from '@worldmap-paintball/api-contract/coverage';
 import { Result, Schema } from 'effect';
 import { lazy, Suspense } from 'react';
 
-import { PlayError } from '../components/play-notice.tsx';
+import {
+  OutsideCoverageNotice,
+  PlayError,
+} from '../components/play-notice.tsx';
 import { maxPracticeBots } from '../game/tuning.ts';
 import { Coordinates } from '../location/coordinates.ts';
 
@@ -52,6 +56,7 @@ const Play = () => {
     return <PlayError error={new Error(search.failure.message)} />;
   }
   const { lat, lon, bots = 0 } = search.success;
+  if (!isCovered(lat, lon)) return <OutsideCoverageNotice />;
   return (
     <ClientOnly>
       <Suspense>

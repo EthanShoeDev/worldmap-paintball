@@ -23,6 +23,7 @@ const player = (
   yaw,
   pitch: 0.1,
   firing: false,
+  weapon: 'sniper',
   alive: true,
 });
 
@@ -73,6 +74,21 @@ describe('snapshot interpolation', () => {
     );
     const yaw = posesOf(result.state).get('a')?.yaw ?? Number.NaN;
     assert.closeTo(Math.cos(yaw), 1, 1e-9);
+  });
+
+  it('takes the weapon in hand from the newer snapshot', () => {
+    const interpolation = new SnapshotInterpolation();
+    const result = interpolation.interpolate(
+      interpolationSnapshot('1', 0, world([player('a', [0, 0, 0], 0)])),
+      interpolationSnapshot(
+        '2',
+        100,
+        world([{ ...player('a', [2, 0, 0], 0), weapon: 'shotgun' }]),
+      ),
+      0.25,
+      interpolationParameters,
+    );
+    assert.strictEqual(posesOf(result.state).get('a')?.weapon, 'shotgun');
   });
 
   it('skips entities missing a field', () => {

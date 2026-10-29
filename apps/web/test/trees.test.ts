@@ -75,7 +75,7 @@ describe('scatterTrees', () => {
       { kind: 'wood', outline: square(-140, -140, 140) },
       { kind: 'wood', outline: square(0, 0, 140) },
     ]);
-    const trees = scatterTrees(woods, 50);
+    const trees = scatterTrees(woods, undefined, 50);
     assert.isAtMost(trees.length, 50);
     assert.isAtLeast(trees.length, 45);
     // Shared out by area rather than spent on the first wood.

@@ -76,7 +76,10 @@ export const unproject = (
   };
 };
 
-// Inverse of `project` for the arena bounds, as [south, west, north, east].
+// [south, west, north, east] in degrees.
+export type Bounds = readonly [number, number, number, number];
+
+// Inverse of `project` for the arena bounds.
 export const bounds = (center: LatLon, halfSize: number) => {
   const dLat = halfSize / METRES_PER_DEGREE_LAT;
   const dLon =
@@ -153,7 +156,7 @@ const osmFeature = (way: OsmWay): ReadonlyArray<MapFeature> => {
 // Part of every durable arena cache key (`arenaKey` in map-data.ts). Bump it
 // whenever baking output for the same map data changes, so bakes made by
 // older code stop matching instead of being served.
-export const BAKE_VERSION = 2;
+export const BAKE_VERSION = 3;
 
 export const bakeFeatures = (
   center: LatLon,
@@ -184,6 +187,78 @@ export const bakeFeatures = (
     }
   }
   return arena;
+};
+
+// A building outline traced from imagery, with the source's height estimate
+// in metres when it has one.
+export interface Footprint {
+  readonly outline: ReadonlyArray<LatLon>;
+  readonly height: number | undefined;
+}
+
+// Imagery heights for houses run low (a typical one estimates 3–4 m), so they
+// only raise a building above the default: one storey and a roof, growing
+// with the footprint for apartments, shops and warehouses.
+const FOOTPRINT_HEIGHT = 6;
+const HOUSE_AREA = 250;
+const MAX_DEFAULT_HEIGHT = 12;
+
+export const footprintHeight = (area: number, estimate?: number) =>
+  Math.max(
+    estimate ?? 0,
+    Math.min(
+      MAX_DEFAULT_HEIGHT,
+      FOOTPRINT_HEIGHT * Math.sqrt(Math.max(1, area / HOUSE_AREA)),
+    ),
+  );
+
+const ringArea = (ring: ReadonlyArray<readonly [number, number]>) => {
+  let twice = 0;
+  Arr.forEach(ring, ([x, z], index) => {
+    const [nextX, nextZ] = ring[(index + 1) % ring.length] ?? [x, z];
+    twice += x * nextZ - nextX * z;
+  });
+  return Math.abs(twice) / 2;
+};
+
+const boxOf = (ring: ReadonlyArray<readonly [number, number]>) => {
+  const xs = Arr.map(ring, ([x]) => x);
+  const zs = Arr.map(ring, ([, z]) => z);
+  return [
+    Math.min(...xs),
+    Math.min(...zs),
+    Math.max(...xs),
+    Math.max(...zs),
+  ] as const;
+};
+
+type Box = ReturnType<typeof boxOf>;
+
+const boxesOverlap = (a: Box, b: Box) =>
+  a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+
+// Adds traced footprints to a baked arena where its (OSM) buildings leave
+// gaps. OSM stays authoritative: a footprint whose bounding box overlaps any
+// OSM building's is the same building, traced a few metres off, and is
+// dropped. Bounding boxes catch offset duplicates that a centroid test misses
+// on small sheds; detached neighbours rarely come that close.
+export const addFootprints = <A extends Arena>(
+  arena: A,
+  footprints: Iterable<Footprint>,
+) => {
+  const taken = Arr.map(arena.buildings, ({ footprint }) => boxOf(footprint));
+  const added: Array<Arena['buildings'][number]> = [];
+  for (const { outline, height } of footprints) {
+    const ring = closedRing(arena, outline);
+    if (ring === undefined || !touchesArena(ring, arena.halfSize)) continue;
+    const box = boxOf(ring);
+    if (Arr.some(taken, (other) => boxesOverlap(box, other))) continue;
+    added.push({
+      footprint: ring,
+      height: footprintHeight(ringArea(ring), height),
+    });
+  }
+  return { ...arena, buildings: [...arena.buildings, ...added] };
 };
 
 export const bakeArena = (

@@ -25,8 +25,9 @@ export const OsmAttribution = ({
   </p>
 );
 
-// The arena is baked from OpenFreeMap's vector tiles, and its ground from
-// aerial photos and elevation tiles when they were available.
+// The arena is baked from OpenFreeMap's vector tiles plus Microsoft's
+// footprints where OSM has no building, and its ground from aerial photos and
+// elevation tiles when they were available.
 export const ArenaAttribution = ({
   imagery,
   terrain,
@@ -42,6 +43,11 @@ export const ArenaAttribution = ({
     <Credit href='https://www.openstreetmap.org/copyright'>
       OpenStreetMap
     </Credit>
+    {' · '}Buildings:{' '}
+    <Credit href='https://github.com/microsoft/GlobalMLBuildingFootprints'>
+      © Microsoft
+    </Credit>{' '}
+    (ODbL)
     {imagery && (
       <>
         {' · '}Imagery:{' '}

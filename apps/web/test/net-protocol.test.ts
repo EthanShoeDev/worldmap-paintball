@@ -25,6 +25,7 @@ const state: PlayerState = {
   yaw: -7.1,
   pitch: 0.3,
   firing: true,
+  weapon: 'shotgun',
 };
 
 const world: WorldSnapshot = {
@@ -39,8 +40,19 @@ const world: WorldSnapshot = {
 };
 
 const events: ReadonlyArray<NetEvent> = [
-  Net.Shot.make({ shooter: 'a', origin: [0, 2, 0], dir: [0, 0, -1] }),
-  Net.Hit.make({ shooter: 'a', target: 'b', point: [0, 1.5, -8] }),
+  Net.Shot.make({
+    shooter: 'a',
+    origin: [0, 2, 0],
+    dir: [0, 0, -1],
+    weapon: 'assault',
+    seed: 42,
+  }),
+  Net.Hit.make({
+    shooter: 'a',
+    target: 'b',
+    point: [0, 1.5, -8],
+    weapon: 'assault',
+  }),
   Net.Eliminated.make({ shooter: 'a', target: 'b', respawnInMs: 3000 }),
   Net.Scored.make({ scores: world.scores }),
   Net.Respawn.make({ player: 'b', position: [10, 1.35, 4] }),
@@ -85,6 +97,8 @@ describe('net protocol', () => {
         { ...state, position: [1, 2] },
         { ...state, yaw: 'left' },
         { ...state, firing: undefined },
+        { ...state, weapon: 'bazooka' },
+        { ...state, weapon: undefined },
       ];
       for (const message of bad) {
         assert.isTrue(Option.isNone(yield* decodePlayerState(message)));
@@ -97,6 +111,29 @@ describe('net protocol', () => {
       assert.isTrue(
         Option.isNone(
           yield* decodeNetEvent({ _tag: 'Hit', shooter: 'a', target: 'b' }),
+        ),
+      );
+      assert.isTrue(
+        Option.isNone(
+          yield* decodeNetEvent({
+            _tag: 'Shot',
+            shooter: 'a',
+            origin: [0, 2, 0],
+            dir: [0, 0, -1],
+            weapon: 'bazooka',
+            seed: 1,
+          }),
+        ),
+      );
+      assert.isTrue(
+        Option.isNone(
+          yield* decodeNetEvent({
+            _tag: 'Shot',
+            shooter: 'a',
+            origin: [0, 2, 0],
+            dir: [0, 0, -1],
+            seed: 1,
+          }),
         ),
       );
       assert.isTrue(

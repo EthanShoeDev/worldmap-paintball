@@ -3,6 +3,7 @@ import { Array as Arr } from 'effect';
 import { Atom } from 'effect/reactivity';
 
 import { connectedGamepads } from './devices.ts';
+import { type CombatView, combatViewOf, makeLoadout } from './loadout.ts';
 
 const listen = (
   target: EventTarget,
@@ -32,3 +33,12 @@ export const gamepadNamesAtom = Atom.make((get) => {
   );
   return names();
 });
+
+// Set by the render loop, at most once a frame and only on a change.
+export const combatViewAtom = Atom.make<CombatView>(
+  combatViewOf(makeLoadout(), false),
+);
+
+// Counts this player's balls that reached another player; each new count
+// flashes the hit marker.
+export const hitMarkerAtom = Atom.make(0);

@@ -1,5 +1,8 @@
 import { Link } from '@tanstack/react-router';
+import { outsideCoverageMessage } from '@worldmap-paintball/api-contract/coverage';
 import type { ReactNode } from 'react';
+
+import { apiErrorMessage } from '../api-client.ts';
 
 export const PlayNotice = ({
   title,
@@ -14,13 +17,22 @@ export const PlayNotice = ({
   </main>
 );
 
+const PickAnother = () => (
+  <Link className='underline' to='/'>
+    Pick another location
+  </Link>
+);
+
+export const OutsideCoverageNotice = () => (
+  <PlayNotice title={outsideCoverageMessage}>
+    <p className='text-slate-600'>Arenas can only be built there for now.</p>
+    <PickAnother />
+  </PlayNotice>
+);
+
 export const PlayError = ({ error }: { readonly error: unknown }) => (
   <PlayNotice title='Could not build this arena'>
-    <p className='text-slate-600'>
-      {error instanceof Error ? error.message : 'Unknown error'}
-    </p>
-    <Link className='underline' to='/'>
-      Pick another location
-    </Link>
+    <p className='text-slate-600'>{apiErrorMessage(error)}</p>
+    <PickAnother />
   </PlayNotice>
 );

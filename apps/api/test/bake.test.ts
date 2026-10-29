@@ -2,10 +2,12 @@ import { assert, describe, it } from '@effect/vitest';
 import { Array as Arr } from 'effect';
 
 import {
+  addFootprints,
   bakeArena,
   bakeFeatures,
   bounds,
   buildingHeight,
+  footprintHeight,
   project,
 } from '../src/bake.ts';
 
@@ -179,5 +181,71 @@ describe('bakeFeatures', () => {
       [1, 1, 1],
     );
     assert.strictEqual(arena.areas[0]?.kind, 'wood');
+  });
+});
+
+describe('footprintHeight', () => {
+  it('gives a house one storey and a roof', () => {
+    assert.strictEqual(footprintHeight(120), 6);
+    assert.strictEqual(footprintHeight(250), 6);
+  });
+
+  it('grows with the footprint up to a cap', () => {
+    assert.closeTo(footprintHeight(500), 6 * Math.SQRT2, 1e-9);
+    assert.strictEqual(footprintHeight(1000), 12);
+    assert.strictEqual(footprintHeight(20_000), 12);
+  });
+
+  it('uses an estimate only when it is taller than the default', () => {
+    assert.strictEqual(footprintHeight(120, 3.4), 6);
+    assert.strictEqual(footprintHeight(2000, 21.5), 21.5);
+  });
+});
+
+describe('addFootprints', () => {
+  const far = 0.01;
+  const osm = bakeFeatures(center, 150, [
+    { type: 'building', outline: square, height: 5 },
+  ]);
+  const shifted = (dLat: number, dLon: number) =>
+    Arr.map(square, ({ lat, lon }) => ({ lat: lat + dLat, lon: lon + dLon }));
+
+  it('keeps OSM buildings and adds footprints in the gaps', () => {
+    const arena = addFootprints(osm, [
+      { outline: shifted(0.0005, 0.0005), height: undefined },
+    ]);
+    assert.strictEqual(arena.buildings.length, 2);
+    assert.deepStrictEqual(arena.buildings[0], osm.buildings[0]);
+    assert.strictEqual(arena.buildings[1]?.height, 6);
+  });
+
+  it('drops a footprint overlapping an OSM building, even a few metres off', () => {
+    const arena = addFootprints(osm, [
+      { outline: shifted(0.00004, 0.00004), height: 9 },
+    ]);
+    assert.deepStrictEqual(arena.buildings, osm.buildings);
+  });
+
+  it('keeps footprints that only overlap each other', () => {
+    const arena = addFootprints(osm, [
+      { outline: shifted(0.0005, 0.0005), height: undefined },
+      { outline: shifted(0.00054, 0.0005), height: undefined },
+    ]);
+    assert.strictEqual(arena.buildings.length, 3);
+  });
+
+  it('drops footprints outside the arena and degenerate ones', () => {
+    const arena = addFootprints(osm, [
+      { outline: shifted(0, far), height: undefined },
+      { outline: square.slice(0, 2), height: undefined },
+    ]);
+    assert.deepStrictEqual(arena.buildings, osm.buildings);
+  });
+
+  it('uses the estimate for a tall footprint', () => {
+    const arena = addFootprints(osm, [
+      { outline: shifted(0.0005, 0.0005), height: 14.2 },
+    ]);
+    assert.strictEqual(arena.buildings[1]?.height, 14.2);
   });
 });

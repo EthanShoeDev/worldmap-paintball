@@ -1,4 +1,5 @@
 import { ClientOnly, createFileRoute } from '@tanstack/react-router';
+import { coverageNames } from '@worldmap-paintball/api-contract/coverage';
 import { lazy, Suspense } from 'react';
 
 import { OsmAttribution } from '../components/osm-attribution.tsx';
@@ -42,7 +43,7 @@ const Home = () => (
       <div className='flex flex-col gap-3'>
         <h2 className='font-semibold'>Host a match</h2>
         <p className='text-sm text-slate-600'>
-          Pick anywhere on Earth for the arena.
+          Pick anywhere in {coverageNames} for the arena.
         </p>
         <LocationSearch />
         <ClientOnly>

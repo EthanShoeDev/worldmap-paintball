@@ -1,19 +1,26 @@
-import '@tanstack/react-start/client-only';
 import type { PlayerId } from '@worldmap-paintball/api-contract/lobby';
 import { type Object3D, Raycaster, Vector3 } from 'three';
 
-import { distance, nearestPlayerHit } from './net/hit-test.ts';
+import { distance, nearestPlayerHit, sub } from './net/hit-test.ts';
 import type { Vec3 } from './net/protocol.ts';
+import { aimFrom, aimPoint, aimRange } from './projectile.ts';
 import type { Hit } from './splats.ts';
-import { fireRange } from './tuning.ts';
+import type { WeaponSpec } from './tuning.ts';
+
+type Players = Iterable<readonly [PlayerId, Vec3]>;
 
 const raycaster = new Raycaster();
-raycaster.far = fireRange;
 // Uses the bounds tree <Bvh> builds; a paintball only needs the nearest hit.
 raycaster.firstHitOnly = true;
 
-const raycastArena = (arena: Object3D, origin: Vec3, dir: Vec3) => {
+const raycastArena = (
+  arena: Object3D,
+  origin: Vec3,
+  dir: Vec3,
+  far: number,
+) => {
   raycaster.set(new Vector3(...origin), new Vector3(...dir));
+  raycaster.far = far;
   const [hit] = raycaster.intersectObject(arena, true);
   if (!hit?.face) return undefined;
   const normal = hit.face.normal
@@ -25,34 +32,70 @@ const raycastArena = (arena: Object3D, origin: Vec3, dir: Vec3) => {
   };
 };
 
-// Whichever the paintball reaches first: a player capsule or the arena.
-export const traceShot = (
+// Whichever a straight path meets first within `far`: a player capsule or
+// the arena.
+const trace = (
   arena: Object3D | null,
   origin: Vec3,
   dir: Vec3,
-  players: Iterable<readonly [PlayerId, Vec3]>,
+  players: Players,
+  far: number,
 ) => {
-  const surface = arena ? raycastArena(arena, origin, dir) : undefined;
+  const surface = arena ? raycastArena(arena, origin, dir, far) : undefined;
   const player = nearestPlayerHit(
     origin,
     dir,
     players,
-    surface?.distance ?? fireRange,
+    surface?.distance ?? far,
   );
-  return player
-    ? { player, surface: undefined }
-    : { player: undefined, surface: surface?.hit };
+  if (player) return { player, surface: undefined, distance: player.distance };
+  return (
+    surface && {
+      player: undefined,
+      surface: surface.hit,
+      distance: surface.distance,
+    }
+  );
+};
+
+// What a ball's step from `start` to `end` runs into first, if anything.
+export const segmentImpact = (
+  arena: Object3D | null,
+  players: Players,
+  start: Vec3,
+  end: Vec3,
+) => {
+  const length = distance(start, end);
+  if (length === 0) return undefined;
+  const [x, y, z] = sub(end, start);
+  return trace(
+    arena,
+    start,
+    [x / length, y / length, z / length],
+    players,
+    length,
+  );
 };
 
 // Whether the arena leaves the straight line between two points open.
-export const clearLine = (arena: Object3D | null, from: Vec3, to: Vec3) => {
-  const length = distance(from, to);
-  if (!arena || length === 0) return true;
-  const dir = [
-    (to[0] - from[0]) / length,
-    (to[1] - from[1]) / length,
-    (to[2] - from[2]) / length,
-  ] as const;
-  const blocker = raycastArena(arena, from, dir);
-  return blocker === undefined || blocker.distance >= length;
+export const clearLine = (arena: Object3D | null, from: Vec3, to: Vec3) =>
+  segmentImpact(arena, [], from, to) === undefined;
+
+// A shot leaves the muzzle but heads for the crosshair's point, so aiming
+// stays honest. A muzzle poked through a wall fires from the eye instead, so
+// a ball never starts inside one.
+export const aimShot = (
+  arena: Object3D | null,
+  weapon: WeaponSpec,
+  eye: Vec3,
+  dir: Vec3,
+  muzzle: Vec3,
+  players: Players,
+) => {
+  const origin = clearLine(arena, eye, muzzle) ? muzzle : eye;
+  const seen = trace(arena, eye, dir, players, aimRange(weapon));
+  return {
+    origin,
+    dir: aimFrom(origin, aimPoint(weapon, eye, dir, seen?.distance)),
+  };
 };

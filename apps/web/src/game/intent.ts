@@ -1,5 +1,10 @@
 export type Vec2 = readonly [number, number];
 
+// A weapon slot to switch to, or a number of slots to step through.
+export type WeaponSelection =
+  | { readonly slot: number }
+  | { readonly cycle: number };
+
 // What the player wants this frame, independent of the device it came from.
 // move: [strafe right, forward], each in [-1, 1] with length <= 1.
 // look: [yaw right, pitch down] in radians for this frame.
@@ -9,6 +14,9 @@ export interface Intent {
   readonly jump: boolean;
   readonly sprint: boolean;
   readonly fire: boolean;
+  readonly reload: boolean;
+  readonly zoom: boolean;
+  readonly selectWeapon: WeaponSelection | undefined;
 }
 
 export const idleIntent: Intent = {
@@ -17,6 +25,9 @@ export const idleIntent: Intent = {
   jump: false,
   sprint: false,
   fire: false,
+  reload: false,
+  zoom: false,
+  selectWeapon: undefined,
 };
 
 export const clampLength = ([x, y]: Vec2, max = 1): Vec2 => {
@@ -30,4 +41,7 @@ export const mergeIntents = (a: Intent, b: Intent): Intent => ({
   jump: a.jump || b.jump,
   sprint: a.sprint || b.sprint,
   fire: a.fire || b.fire,
+  reload: a.reload || b.reload,
+  zoom: a.zoom || b.zoom,
+  selectWeapon: a.selectWeapon ?? b.selectWeapon,
 });

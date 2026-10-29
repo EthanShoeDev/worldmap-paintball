@@ -22,11 +22,15 @@ export interface Splat {
 
 export const splatsAtom = Atom.make<ReadonlyArray<Splat>>([]);
 
-// Solo practice cycles the palette; a match paints in the shooter's colour.
+// Solo practice cycles this palette, shot by shot; a match paints in the
+// shooter's colour.
+export const soloPaint = (shot: number) =>
+  palette[shot % palette.length] ?? '#ff3b6b';
+
 export const appendSplat = (
   splats: ReadonlyArray<Splat>,
   { point, normal }: Hit,
-  color?: string,
+  color: string,
 ) => {
   const id = (splats.at(-1)?.id ?? -1) + 1;
   const splat: Splat = {
@@ -34,7 +38,7 @@ export const appendSplat = (
     // Lift off the surface so the decal doesn't z-fight with it.
     position: point.clone().addScaledVector(normal, 0.02),
     rotation: new Quaternion().setFromUnitVectors(facing, normal),
-    color: color ?? palette[id % palette.length] ?? '#ff3b6b',
+    color,
     size: 0.2 + (id % 3) * 0.06,
   };
   return Arr.append(Arr.takeRight(splats, maxSplats - 1), splat);

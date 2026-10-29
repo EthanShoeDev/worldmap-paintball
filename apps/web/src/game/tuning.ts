@@ -5,8 +5,124 @@ export const eyeOffset = 0.75;
 // Bodies drop in from slightly above the ground so they never start embedded.
 export const spawnHeight = bodyHalfHeight + bodyRadius + 0.5;
 
-export const fireInterval = 0.15;
-export const fireRange = 200;
+// Weapons, in m/s, radians and seconds. `spread` is the half-angle of the
+// cone each pellet leaves in; `gravityScale` multiplies paintball gravity.
+// One hit eliminates, so weapons differ only in how they shoot. Their order
+// is the slot order, keys 1 to 3.
+export const weaponIds = ['assault', 'sniper', 'shotgun'] as const;
+export type WeaponId = (typeof weaponIds)[number];
+
+export interface WeaponSpec {
+  readonly muzzleSpeed: number;
+  readonly gravityScale: number;
+  readonly spread: number;
+  readonly pellets: number;
+  readonly fireInterval: number;
+  readonly lifetime: number;
+  // Rounds in a pod, and the seconds to swap in a full one.
+  readonly magazine: number;
+  readonly reloadTime: number;
+  // The field of view while zoomed, in degrees, for a weapon with a scope.
+  readonly zoomFov?: number;
+}
+
+const degrees = (angle: number) => (angle * Math.PI) / 180;
+
+export const weapons: Record<WeaponId, WeaponSpec> = {
+  assault: {
+    muzzleSpeed: 90,
+    gravityScale: 1,
+    spread: degrees(0.6),
+    pellets: 1,
+    fireInterval: 0.15,
+    lifetime: 2.5,
+    magazine: 40,
+    reloadTime: 2,
+  },
+  sniper: {
+    muzzleSpeed: 140,
+    gravityScale: 0.6,
+    spread: 0,
+    pellets: 1,
+    fireInterval: 1.1,
+    lifetime: 4,
+    magazine: 5,
+    reloadTime: 2.5,
+    zoomFov: 30,
+  },
+  // An 8° cone, and a lifetime that ends the balls about 25 m out.
+  shotgun: {
+    muzzleSpeed: 70,
+    gravityScale: 1,
+    spread: degrees(4),
+    pellets: 6,
+    fireInterval: 0.7,
+    lifetime: 0.36,
+    magazine: 8,
+    reloadTime: 2.5,
+  },
+};
+
+export const defaultWeapon: WeaponId = 'assault';
+
+// Seconds to put one weapon away and raise the next; `zoomResponse` is how
+// fast the field of view eases toward its target, per second.
+export const loadoutTuning = { swapTime: 0.3, zoomResponse: 14 } as const;
+
+// What the host tolerates before it rejects a shot or hit, in milliseconds.
+// Reliable messages can bunch up after a loss, so shots may arrive up to
+// `jitter` early against their weapon's fire interval and reload time. A hit
+// must follow a shot of its weapon within the ball's lifetime plus `hitLag`.
+export const fairnessTuning = { jitter: 250, hitLag: 1000 } as const;
+
+// Paintballs in flight; metres and seconds.
+export const paintballTuning = {
+  gravity: 9.81,
+  // The longest step a ball is raycast along, so a slow frame can't tunnel.
+  subStep: 1 / 60,
+  // The crosshair's point is never nearer the eye than this, so a ball from
+  // the muzzle never turns back across the view.
+  minAim: 2,
+  maxBalls: 256,
+  // Drawn larger than a real 17 mm ball so it reads at a distance.
+  radius: 0.035,
+  trail: { length: 1.6, radius: 0.014, opacity: 0.35 },
+} as const;
+
+// Shared by the world camera and the first-person marker's, so a point in the
+// marker's view space projects where the same point would in the world.
+export const viewFov = 75;
+
+// Device pixels per CSS pixel. A 4K laptop at native ratio draws ~8M pixels a
+// frame, which most laptop GPUs can't shade at 60 fps, so Auto caps below it
+// and lowers it further while the frame rate is short.
+export const renderTuning = { minDpr: 0.5, autoMaxDpr: 1.5, flipflops: 3 };
+
+// The paintball markers, in metres in their own frame: receiver at the
+// origin, barrel along -z. Angles in radians, times in seconds.
+export const markerTuning = {
+  muzzle: {
+    assault: [0, 0.012, -0.445],
+    sniper: [0, 0.012, -0.72],
+    shotgun: [0, 0.012, -0.36],
+  },
+  // First person, in the view camera's frame: lower right, barrel ahead.
+  view: { position: [0.2, -0.21, -0.42], rotation: [0.02, 0.05, 0] },
+  // Third person, in the avatar's frame: pitched about the shoulder, held at
+  // the right of the chest, a little oversized to read at a distance.
+  held: { pivot: [0, 0.42, 0], position: [0.24, -0.14, -0.34], scale: 1.3 },
+  recoil: { rise: 0.025, decay: 0.07, back: 0.05, lift: 0.012, tilt: 0.12 },
+  // Multiplies the recoil kick per weapon.
+  kick: { assault: 1, sniper: 1.8, shotgun: 2.2 },
+  // Bob phase advances `stride` radians per metre walked; `amount` eases
+  // toward speed / fullSpeed at `response` per second.
+  bob: { stride: 2.4, sway: 0.01, bounce: 0.008, fullSpeed: 7.5, response: 8 },
+  // Fully lowered during a swap: dropped `drop` and pitched down `pitch`.
+  swap: { drop: 0.2, pitch: 0.7 },
+  // Mid-reload: dipped, pitched up and rolled in toward the centre. The pose
+  // eases in and out over `ease` of the reload.
+  reload: { dip: 0.05, pitch: 0.25, roll: 0.6, ease: 0.2 },
+} as const;
 
 export const respawnDelayMs = 3000;
 export const netTickMs = 50;
@@ -29,7 +145,9 @@ export const botTuning = {
   burstPause: 0.6,
   strafeFlip: [0.6, 1.6],
   // Closes in on a target further than this, backs off from one nearer.
-  engageDistance: [8, 25],
+  engageDistance: { assault: [8, 25], sniper: [20, 45], shotgun: [3, 10] },
+  // Scales aim jitter for a scoped weapon: bots zoom without a camera.
+  zoomJitter: 0.35,
   // Aims at the chest: the eye sits above most of the hitbox.
   aimDrop: 0.6,
   waypointRadius: 1.5,
@@ -60,6 +178,23 @@ export const treeTuning = {
   // Keeps trunks off the boundary walls.
   wallMargin: 2,
   seed: 20_250_917,
+} as const;
+
+// Tree canopy read from the aerial photo, which shows woods the map lacks.
+// Colours are 0–255 sRGB means over a cell and a rim of `texturePixels`.
+export const canopyTuning = {
+  cellSize: 4,
+  texturePixels: 1,
+  // Excess green, 2G − R − B: vegetation rather than roofs, roads and soil.
+  minGreen: 8,
+  // Crowns are darker than grass and fields in the same light: below
+  // `shadedBrightness` a green cell is canopy, up to `maxBrightness` it must
+  // also be rough (luma standard deviation), as crowns are and lawns aren't.
+  shadedBrightness: 85,
+  maxBrightness: 130,
+  minTexture: 9,
+  // Of a cell and its eight neighbours, how many must look like canopy.
+  majority: 5,
 } as const;
 
 const palette = [
