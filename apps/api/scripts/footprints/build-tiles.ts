@@ -85,6 +85,9 @@ const Feature = Schema.Struct({
 const decodeFeature = Schema.decodeUnknownOption(
   Schema.fromJsonString(Feature),
 );
+const encodeFootprintJson = Schema.encodeOption(
+  Schema.fromJsonString(Schema.Array(Schema.Int)),
+);
 
 const tileBounds = (tile: TileId) => {
   const northWest = tileLatLon(tile, [0, 0]);
@@ -209,13 +212,17 @@ const makeBuckets = (region: Region) => {
       counts.skipped++;
       return;
     }
-    const encoded = JSON.stringify(encodeFootprint(ring, height));
+    const encoded = encodeFootprintJson(encodeFootprint(ring, height));
+    if (Option.isNone(encoded)) {
+      counts.skipped++;
+      return;
+    }
     let kept = false;
     for (const tile of covering) {
       if (!isNeeded(tile)) continue;
       const key = `${tile.x}/${tile.y}`;
       const entry = tiles.get(key) ?? { tile, footprints: [] };
-      entry.footprints.push(encoded);
+      entry.footprints.push(encoded.value);
       tiles.set(key, entry);
       kept = true;
     }
@@ -409,9 +416,12 @@ const buildRegion = Effect.fn('buildFootprintTiles')(function* (
     tiles: buckets.tiles.size,
     packs: written,
   };
+  const manifestJson = yield* Schema.encodeEffect(FootprintManifestJson)(
+    manifest,
+  );
   yield* fs.writeFileString(
     path.join(out, manifestKey(region.id)),
-    yield* Schema.encodeEffect(FootprintManifestJson)(manifest),
+    manifestJson,
   );
 
   const total = Arr.reduce(written, 0, (sum, { bytes }) => sum + bytes);

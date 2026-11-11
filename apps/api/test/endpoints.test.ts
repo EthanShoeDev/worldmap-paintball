@@ -128,16 +128,18 @@ describe('Arena coverage and rate limit', () => {
         mapData: MapDataUnreachable,
       });
       assert.strictEqual(response.status, 422);
-      assert.strictEqual(yield* errorTag(response), 'OutsideCoverage');
+      const tag = yield* errorTag(response);
+      assert.strictEqual(tag, 'OutsideCoverage');
     }),
   );
 
   it.effect('limits each client separately', () =>
     Effect.gen(function* () {
       // One limiter shared by every request below.
-      const limiter = Layer.succeedContext(
-        yield* Layer.build(ArenaLimiter.makeMemory({ limit: 2, period: 60 })),
+      const limiterContext = yield* Layer.build(
+        ArenaLimiter.makeMemory({ limit: 2, period: 60 }),
       );
+      const limiter = Layer.succeedContext(limiterContext);
       const fetchAs = (ip: string) =>
         send(`/api/arenas?lat=${raleigh.lat}&lon=${raleigh.lon}`, {
           limiter,
@@ -147,7 +149,8 @@ describe('Arena coverage and rate limit', () => {
       assert.strictEqual((yield* fetchAs('192.0.2.1')).status, 200);
       const limited = yield* fetchAs('192.0.2.1');
       assert.strictEqual(limited.status, 429);
-      assert.strictEqual(yield* errorTag(limited), 'RateLimited');
+      const tag = yield* errorTag(limited);
+      assert.strictEqual(tag, 'RateLimited');
       assert.strictEqual((yield* fetchAs('192.0.2.2')).status, 200);
     }),
   );

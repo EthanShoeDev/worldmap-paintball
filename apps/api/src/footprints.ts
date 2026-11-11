@@ -369,9 +369,13 @@ export class BuildingFootprints extends Context.Service<
   // get the default.
   static readonly layerLocal = Layer.unwrap(
     Effect.gen(function* () {
-      const configured = yield* Effect.try(() => ENV.FOOTPRINTS_DIR).pipe(
-        Effect.orElseSucceed(() => undefined),
-      );
+      const configured = yield* Effect.try({
+        try: () => ENV.FOOTPRINTS_DIR,
+        catch: (cause) =>
+          BuildingFootprintsError.make({
+            message: `FOOTPRINTS_DIR: ${String(cause)}`,
+          }),
+      }).pipe(Effect.orElseSucceed(() => undefined));
       const dir = yield* footprintsDir(configured);
       // dynamic-import -- the Worker bundles LocalBackends but never builds it, so node:fs stays out of its startup
       const { layer } = yield* Effect.promise(

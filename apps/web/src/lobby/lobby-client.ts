@@ -106,7 +106,8 @@ export class LobbyClient extends Context.Service<
           to: Socket.Writer,
           message: ClientMessage,
         ) {
-          yield* to.write(yield* encodeClientMessage(message));
+          const encoded = yield* encodeClientMessage(message);
+          yield* to.write(encoded);
         });
 
         const open = Effect.fn('LobbyClient.open')(function* (

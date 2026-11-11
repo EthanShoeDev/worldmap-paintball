@@ -42,23 +42,6 @@ const ArenaSquare = ({ center }: { readonly center: Coordinates }) => (
   </Source>
 );
 
-export const LocationPreview = ({
-  location,
-}: {
-  readonly location: Coordinates;
-}) => (
-  <Map
-    longitude={location.lon}
-    latitude={location.lat}
-    zoom={15}
-    interactive={false}
-    mapStyle={style}
-    attributionControl={{ compact: true }}
-  >
-    <ArenaSquare center={location} />
-  </Map>
-);
-
 export const LocationMap = () => {
   const [selection, setSelection] = useAtom(selectionAtom);
   const map = useRef<MapRef>(null);

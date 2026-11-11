@@ -1,5 +1,5 @@
 {
-  "cliVersion": "0.2.2",
+  "cliVersion": "0.2.7",
   "files": {
     ".changeset/config.json": {
       "sha256": "9063b5171c2ffd19e1816cd601e09b10c17136f673e9fc71256b6cc67eaabe16",
@@ -10,7 +10,7 @@
       "strategy": "seed"
     },
     ".env.schema": {
-      "sha256": "0d05045a0efcc9e198ffebdcee1c6ae11ed85e2f6253dbc06c209bfa1e5e99db",
+      "sha256": "b05bb96e0a6a64cf4de93bf7f609398d5d375171d1023cefc3838a24296f56d9",
       "strategy": "managed",
       "owned": [
         "header",
@@ -37,8 +37,16 @@
       ]
     },
     ".jscpd.json": {
-      "sha256": "32146a199a9dde83e15f645fdf794ad099b635973ed2574eb7458be1f05e433c",
+      "sha256": "72ee960e2f256955428aa48af67450b976150b5df63f9c9bbe49e348ff646ffc",
       "strategy": "owned"
+    },
+    ".mcp.json": {
+      "sha256": "fa9c8fcaeb1bbae2952867ea37f169a9028bc7c2718878d4fce92f26a808922d",
+      "strategy": "json-merge",
+      "owned": [
+        "/mcpServers/cloudflare-observability/type",
+        "/mcpServers/cloudflare-observability/url"
+      ]
     },
     ".vscode/extensions.json": {
       "sha256": "825e934bae0848ed307482fb80de0f97746f7cd39ed83183e66f2b9243469301",
@@ -119,7 +127,7 @@
       "strategy": "owned"
     },
     "apps/web/package.json": {
-      "sha256": "d8bc71f6852f26f14fffe0c7a41bf8ec5110e2dc391ef23374931b0e00909aa0",
+      "sha256": "0421c60190c1883d5f49638f286544a27edf2be96d4b31fb9d92177e86b5cf19",
       "strategy": "json-merge",
       "owned": [
         "/name",
@@ -198,7 +206,7 @@
       "strategy": "seed"
     },
     "apps/web/tsconfig.json": {
-      "sha256": "03bd20242b2cf054e719c8bdd3ce987a7ce9eba90c6f8bc67f7cee6eb0bd011f",
+      "sha256": "245b708b9e966cec4208b8bd507a41234a5bde110ef3a2beb5ffd4d4789f767a",
       "strategy": "owned"
     },
     "apps/web/turbo.jsonc": {
@@ -376,7 +384,7 @@
       ]
     },
     "packages/api-contract/package.json": {
-      "sha256": "2dea28848f04d781ccbd4866f1c79f369a5113bbf389f3b08210bc4c084095a4",
+      "sha256": "a2190c79a6a18b9c90b78a4256f8739ae1092811788390fd188d70d8d6619006",
       "strategy": "json-merge",
       "owned": [
         "/name",

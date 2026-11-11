@@ -10,17 +10,22 @@ const take = (key: string) =>
 describe('ArenaLimiter.layerMemory', () => {
   it.effect('refuses requests over the limit until the window ends', () =>
     Effect.gen(function* () {
-      assert.isTrue(Exit.isSuccess(yield* take('a')));
-      assert.isTrue(Exit.isSuccess(yield* take('a')));
+      const first = yield* take('a');
+      assert.isTrue(Exit.isSuccess(first));
+      const second = yield* take('a');
+      assert.isTrue(Exit.isSuccess(second));
       const over = yield* take('a');
       assert.isTrue(Exit.isFailure(over));
       // Another client has its own count.
-      assert.isTrue(Exit.isSuccess(yield* take('b')));
+      const other = yield* take('b');
+      assert.isTrue(Exit.isSuccess(other));
 
       yield* TestClock.adjust('59 seconds');
-      assert.isTrue(Exit.isFailure(yield* take('a')));
+      const stillOver = yield* take('a');
+      assert.isTrue(Exit.isFailure(stillOver));
       yield* TestClock.adjust('1 second');
-      assert.isTrue(Exit.isSuccess(yield* take('a')));
+      const afterWindow = yield* take('a');
+      assert.isTrue(Exit.isSuccess(afterWindow));
     }).pipe(Effect.provide(ArenaLimiter.makeMemory({ limit: 2, period: 60 }))),
   );
 

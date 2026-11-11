@@ -450,8 +450,10 @@ describe('LobbyMachine runtime', () => {
           const ref = yield* Machine.start(LobbyMachine);
           yield* ref.send(create);
           yield* Machine.waitFor(ref, at('Session.Connecting'));
-          assert.strictEqual(yield* Ref.get(fake.open), 1);
-          assert.deepStrictEqual(yield* Ref.get(fake.hellos), [
+          const opened = yield* Ref.get(fake.open);
+          assert.strictEqual(opened, 1);
+          const hellos = yield* Ref.get(fake.hellos);
+          assert.deepStrictEqual(hellos, [
             { _tag: 'CreateLobby', name: 'Host', location },
           ]);
           yield* Queue.offer(fake.inbox, {
@@ -470,23 +472,20 @@ describe('LobbyMachine runtime', () => {
           });
           yield* Machine.waitFor(ref, at('Session.InLobby.Playing'));
           yield* Effect.yieldNow;
-          assert.deepStrictEqual(yield* Ref.get(fake.matches), {
-            started: 1,
-            stopped: 0,
-          });
+          const started = yield* Ref.get(fake.matches);
+          assert.deepStrictEqual(started, { started: 1, stopped: 0 });
           yield* Queue.offer(fake.inbox, {
             _tag: 'LobbyUpdated',
             lobby: lobby('waiting'),
           });
           yield* Machine.waitFor(ref, at('Session.InLobby.Waiting'));
-          assert.deepStrictEqual(yield* Ref.get(fake.matches), {
-            started: 1,
-            stopped: 1,
-          });
+          const stopped = yield* Ref.get(fake.matches);
+          assert.deepStrictEqual(stopped, { started: 1, stopped: 1 });
           yield* ref.send(leave);
           yield* Machine.waitFor(ref, at('Idle'));
           yield* Effect.yieldNow;
-          assert.strictEqual(yield* Ref.get(fake.open), 0);
+          const stillOpen = yield* Ref.get(fake.open);
+          assert.strictEqual(stillOpen, 0);
         }).pipe(Effect.provide(fake.layer));
       }),
   );
@@ -525,7 +524,8 @@ describe('LobbyMachine runtime', () => {
         yield* Queue.end(closing.inbox);
         yield* Machine.waitFor(ref, at('Ended.Lost'));
         yield* Effect.yieldNow;
-        assert.strictEqual(yield* Ref.get(closing.open), 0);
+        const stillOpen = yield* Ref.get(closing.open);
+        assert.strictEqual(stillOpen, 0);
       }).pipe(Effect.provide(closing.layer));
     }),
   );
@@ -538,9 +538,8 @@ describe('LobbyMachine runtime', () => {
         yield* ref.send(create);
         yield* Machine.waitFor(ref, at('Session.Connecting'));
         yield* TestClock.adjust('9 seconds');
-        assert.isTrue(
-          LobbyStates.matches(yield* ref.state, 'Session.Connecting'),
-        );
+        const waiting = yield* ref.state;
+        assert.isTrue(LobbyStates.matches(waiting, 'Session.Connecting'));
         yield* TestClock.adjust('1 second');
         const failed = yield* Machine.waitFor(ref, at('Ended.Failed'));
         assert.deepStrictEqual(
@@ -551,7 +550,8 @@ describe('LobbyMachine runtime', () => {
           }),
         );
         yield* Effect.yieldNow;
-        assert.strictEqual(yield* Ref.get(fake.open), 0);
+        const stillOpen = yield* Ref.get(fake.open);
+        assert.strictEqual(stillOpen, 0);
       }).pipe(Effect.provide(fake.layer));
     }),
   );

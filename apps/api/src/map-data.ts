@@ -224,8 +224,10 @@ export class MapData extends Context.Service<
     Layer.effect(
       MapData,
       Effect.gen(function* () {
-        const first = Context.get(yield* Layer.build(primary), MapData);
-        const second = Context.get(yield* Layer.build(fallback), MapData);
+        const primaryContext = yield* Layer.build(primary);
+        const first = Context.get(primaryContext, MapData);
+        const fallbackContext = yield* Layer.build(fallback);
+        const second = Context.get(fallbackContext, MapData);
         return MapData.of({
           arena: (center) =>
             first.arena(center).pipe(

@@ -109,7 +109,8 @@ const fixture = Effect.fn('fixture')(function* (
       ),
       ',',
     )}]`;
-    slots.set(slotOf(tile), yield* gzip(json));
+    const gzipped = yield* gzip(json);
+    slots.set(slotOf(tile), gzipped);
     packs.set(key, slots);
   }
   for (const [key, slots] of packs) {
@@ -161,7 +162,8 @@ describe('BuildingFootprints.layerDirectory', () => {
   it.effect('finds nothing where no pack was built', () =>
     Effect.gen(function* () {
       const dir = yield* fixture([]);
-      assert.deepStrictEqual(yield* footprintsIn(dir), []);
+      const footprints = yield* footprintsIn(dir);
+      assert.deepStrictEqual(footprints, []);
     }).pipe(Effect.provide(TestFileSystem)),
   );
 
@@ -170,10 +172,8 @@ describe('BuildingFootprints.layerDirectory', () => {
       const dir = yield* fixture([
         { tile: west, footprints: [encodeFootprint(inWest, undefined)] },
       ]);
-      assert.deepStrictEqual(
-        yield* footprintsIn(dir, { lat: 51.5, lon: -0.12 }),
-        [],
-      );
+      const footprints = yield* footprintsIn(dir, { lat: 51.5, lon: -0.12 });
+      assert.deepStrictEqual(footprints, []);
     }).pipe(Effect.provide(TestFileSystem)),
   );
 

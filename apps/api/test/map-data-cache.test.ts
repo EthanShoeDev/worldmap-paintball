@@ -353,10 +353,12 @@ describe('ArenaStore.layerMemory', () => {
   it.effect('round-trips a stored arena', () =>
     Effect.gen(function* () {
       const store = yield* ArenaStore;
-      assert.isTrue(Option.isNone(yield* store.get('missing')));
+      const missing = yield* store.get('missing');
+      assert.isTrue(Option.isNone(missing));
       const entry = { bakedAt: 42, arena: arenaAt(paris, 2) };
       yield* store.put('paris', entry);
-      assert.deepStrictEqual(yield* store.get('paris'), Option.some(entry));
+      const stored = yield* store.get('paris');
+      assert.deepStrictEqual(stored, Option.some(entry));
     }).pipe(Effect.provide(ArenaStore.layerMemory)),
   );
 });

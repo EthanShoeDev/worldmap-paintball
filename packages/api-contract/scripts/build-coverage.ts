@@ -238,10 +238,8 @@ const build = Effect.fn('buildCoverage')(function* ({
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const packageDir = path.resolve(
-    path.dirname(yield* path.fromFileUrl(new URL(import.meta.url))),
-    '..',
-  );
+  const scriptPath = yield* path.fromFileUrl(new URL(import.meta.url));
+  const packageDir = path.resolve(path.dirname(scriptPath), '..');
   const shp = Option.getOrElse(shapefile, () =>
     path.resolve(
       packageDir,
@@ -252,10 +250,10 @@ const build = Effect.fn('buildCoverage')(function* ({
       'tl_2023_us_state.shp',
     ),
   );
-  const attributes = readDbf(
-    yield* fs.readFile(Str.replace(/\.shp$/, '.dbf')(shp)),
-  );
-  const shapes = readShp(yield* fs.readFile(shp));
+  const dbf = yield* fs.readFile(Str.replace(/\.shp$/, '.dbf')(shp));
+  const attributes = readDbf(dbf);
+  const shpBytes = yield* fs.readFile(shp);
+  const shapes = readShp(shpBytes);
 
   const states = Arr.flatMap(shapes, (rings, index) => {
     const usps = attributes[index]?.get('STUSPS') ?? '';
@@ -341,7 +339,6 @@ const command = Command.make(
 );
 
 Command.run(command, { version: '1.0.0' }).pipe(
-  // oxlint-disable-next-line effecttsgo/strict-effect-provide -- the script's entry point
   Effect.provide(BunServices.layer),
   BunRuntime.runMain,
 );

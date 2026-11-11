@@ -220,10 +220,8 @@ export class NetGame extends Context.Service<
         let feedId = 0;
         let snapshotId = 0;
 
-        const presentNow = Arr.map(
-          yield* SubscriptionRef.get(network.players),
-          (player) => player.id,
-        );
+        const playersNow = yield* SubscriptionRef.get(network.players);
+        const presentNow = Arr.map(playersNow, (player) => player.id);
         registry.set(matchViewAtom, {
           ...idleMatchView,
           you,
@@ -447,10 +445,8 @@ export class NetGame extends Context.Service<
         }
 
         const hostTick = Effect.fn('NetGame.hostTick')(function* (now: number) {
-          const members = Arr.map(
-            yield* SubscriptionRef.get(network.players),
-            (player) => player.id,
-          );
+          const players = yield* SubscriptionRef.get(network.players);
+          const members = Arr.map(players, (player) => player.id);
           const states = Arr.flatMap([...locals], ([id, { state }]) =>
             state ? [[id, state] as const] : [],
           );
@@ -467,11 +463,14 @@ export class NetGame extends Context.Service<
             return [step.outbox, step.match] as const;
           });
           yield* distribute(due);
+          const match = yield* Ref.get(matchRef);
+          const timers = yield* Ref.get(padTimers);
           const snapshot = {
-            ...snapshotOf(yield* Ref.get(matchRef)),
-            pads: padsReady(yield* Ref.get(padTimers), now),
+            ...snapshotOf(match),
+            pads: padsReady(timers, now),
           };
-          yield* network.sendSnapshot(yield* encodeWorldSnapshot(snapshot));
+          const encodedSnapshot = yield* encodeWorldSnapshot(snapshot);
+          yield* network.sendSnapshot(encodedSnapshot);
           snapshotId += 1;
           yield* receiveWorld(`host-${snapshotId}`, now, snapshot);
         });
@@ -488,7 +487,8 @@ export class NetGame extends Context.Service<
           if (isHost) return yield* hostTick(now);
           const own = locals.get(you)?.state;
           if (own) {
-            yield* network.broadcast('state', yield* encodePlayerState(own));
+            const encodedState = yield* encodePlayerState(own);
+            yield* network.broadcast('state', encodedState);
           }
         }).pipe(
           Effect.catch((error) =>
@@ -557,7 +557,8 @@ export class NetGame extends Context.Service<
 
         const announceEnd = Effect.gen(function* () {
           if (!isHost) return;
-          const scores = scoresOf(yield* Ref.get(matchRef));
+          const match = yield* Ref.get(matchRef);
+          const scores = scoresOf(match);
           yield* distribute([Net.MatchEnded.make({ scores })]);
         });
 

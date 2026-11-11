@@ -1,6 +1,8 @@
 {
   "extends": "shoemaker-typescript-config/tsconfig.react.json",
   "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
     "types": ["node", "vite/client"]
   },
   "include": ["src/**/*", "test/**/*", "*.ts"]

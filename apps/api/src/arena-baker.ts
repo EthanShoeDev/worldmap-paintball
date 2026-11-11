@@ -46,18 +46,10 @@ export const FootprintsBucket = Cloudflare.R2.Bucket('BuildingFootprints', {
   forceDestroy: true,
 });
 
-// alchemy's PlatformServices imports `effect/Crypto`, which effect 4.1 does not
-// ship, so DurableObjectServices is `any` and `make` would leak `any` into the
-// Worker's requirements. The annotation states the real ones.
-// oxlint-disable-next-line typescript/no-unsafe-assignment -- see above: the inferred requirement type is `any`
-export const ArenaBakerLive: Layer.Layer<
-  ArenaBaker,
-  never,
-  Cloudflare.Worker | Cloudflare.Providers
-> = ArenaBaker.make(
+export const ArenaBakerLive = ArenaBaker.make(
   Effect.all([
-    ArenaCache.pipe(Effect.flatMap(Cloudflare.R2.ReadWriteBucket)),
-    FootprintsBucket.pipe(Effect.flatMap(Cloudflare.R2.ReadBucket)),
+    Cloudflare.R2.ReadWriteBucket(ArenaCache),
+    Cloudflare.R2.ReadBucket(FootprintsBucket),
   ]).pipe(
     Effect.map(([cache, footprints]) =>
       Effect.gen(function* () {

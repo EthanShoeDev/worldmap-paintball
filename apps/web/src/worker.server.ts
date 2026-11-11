@@ -22,9 +22,10 @@ export default class Web extends Cloudflare.Worker<Web>()(
         // dynamic-import -- Start's server entry only resolves inside the Vite build, and alchemy.run.ts imports this module outside it
         const site = yield* Effect.promise(() => import('./site.server.ts'));
         // On workerd the request wraps a native Request, so this cannot fail.
-        const request = yield* HttpServerRequest.toWeb(
-          yield* HttpServerRequest.HttpServerRequest,
-        ).pipe(Effect.orDie);
+        const serverRequest = yield* HttpServerRequest.HttpServerRequest;
+        const request = yield* HttpServerRequest.toWeb(serverRequest).pipe(
+          Effect.orDie,
+        );
         const response = yield* Effect.promise(() =>
           site.serve(request, backends),
         );

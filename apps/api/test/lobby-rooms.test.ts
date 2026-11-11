@@ -144,14 +144,16 @@ describe('LobbyRooms.layerMemory', () => {
       const { host, p0, ids } = yield* lobbyOfThree;
 
       yield* host.send(Client.Signal.make({ to: ids.p0, signal: offer }));
-      assert.deepStrictEqual(yield* p0.receive, {
+      const signal = yield* p0.receive;
+      assert.deepStrictEqual(signal, {
         _tag: 'Signal',
         from: ids.host,
         signal: offer,
       });
 
       yield* p0.send(Client.Signal.make({ to: ids.p1, signal: offer }));
-      assert.deepStrictEqual(yield* p0.receive, {
+      const rejected = yield* p0.receive;
+      assert.deepStrictEqual(rejected, {
         _tag: 'Rejected',
         reason: 'PeerNotHost',
       });
@@ -163,10 +165,8 @@ describe('LobbyRooms.layerMemory', () => {
       const { host, p0, p1 } = yield* lobbyOfThree;
       yield* p1.close;
       for (const connection of [host, p0]) {
-        assert.deepStrictEqual(names(yield* expectLobby(connection)), [
-          'Host',
-          'P0',
-        ]);
+        const lobby = yield* expectLobby(connection);
+        assert.deepStrictEqual(names(lobby), ['Host', 'P0']);
       }
     }).pipe(Effect.provide(LobbyRooms.layerMemory)),
   );
@@ -207,7 +207,8 @@ describe('LobbyRooms.layerMemory', () => {
       const b = yield* connect('BBBBBB');
       yield* join(a, Client.CreateLobby.make({ name: 'A', location: raleigh }));
       yield* b.send(Client.JoinLobby.make({ name: 'B' }));
-      assert.deepStrictEqual(yield* b.receive, {
+      const rejected = yield* b.receive;
+      assert.deepStrictEqual(rejected, {
         _tag: 'Rejected',
         reason: 'LobbyNotFound',
       });
@@ -218,12 +219,14 @@ describe('LobbyRooms.layerMemory', () => {
     Effect.gen(function* () {
       const stranger = yield* connect();
       yield* stranger.sendText('{"_tag":"Nope"}');
-      assert.deepStrictEqual(yield* stranger.receive, {
+      const invalid = yield* stranger.receive;
+      assert.deepStrictEqual(invalid, {
         _tag: 'Rejected',
         reason: 'InvalidMessage',
       });
       yield* stranger.send(Client.LeaveLobby.make({}));
-      assert.deepStrictEqual(yield* stranger.receive, {
+      const notInLobby = yield* stranger.receive;
+      assert.deepStrictEqual(notInLobby, {
         _tag: 'Rejected',
         reason: 'NotInLobby',
       });

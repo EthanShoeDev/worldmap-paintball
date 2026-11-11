@@ -43,9 +43,8 @@ const UPLOAD_CONCURRENCY = 3;
 const Upload = Alchemy.Action(
   'UploadFootprints',
   Effect.gen(function* () {
-    const bucket = yield* Cloudflare.R2.ReadWriteBucket(
-      yield* FootprintsBucket,
-    );
+    const footprintsBucket = yield* FootprintsBucket;
+    const bucket = yield* Cloudflare.R2.ReadWriteBucket(footprintsBucket);
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 

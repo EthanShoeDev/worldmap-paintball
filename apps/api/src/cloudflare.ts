@@ -1,5 +1,5 @@
 import * as Cloudflare from '@alchemy.run/cloudflare';
-import type { RuntimeContext } from 'alchemy/RuntimeContext';
+import { RuntimeContext } from 'alchemy/RuntimeContext';
 import { Effect, Layer } from 'effect';
 
 import { ArenaBaker, ArenaBakerLive } from './arena-baker.ts';
@@ -30,4 +30,12 @@ export const CloudflareBackends = Effect.gen(function* () {
       Layer.provide(Layer.succeedContext(runtime)),
     ),
   );
-}).pipe(Effect.provide([ArenaBakerLive, Cloudflare.RateLimitBinding]));
+}).pipe(
+  Effect.provide([
+    ArenaBakerLive,
+    Cloudflare.RateLimitBinding,
+    // A Worker's init always runs with RuntimeContext, but alchemy's Worker
+    // types do not admit it as an init requirement; phantom only erases it.
+    RuntimeContext.phantom,
+  ]),
+);

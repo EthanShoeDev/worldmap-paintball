@@ -43,8 +43,9 @@ const playing = [
 describe('lobbyMatchCode', () => {
   it.effect('joins a running match at the same location', () =>
     Effect.gen(function* () {
+      const session = yield* after(...playing);
       assert.strictEqual(
-        lobbyMatchCode(yield* after(...playing), { lat: 51.5, lon: -0.12 }),
+        lobbyMatchCode(session, { lat: 51.5, lon: -0.12 }),
         'ABC234',
       );
     }),
@@ -53,11 +54,12 @@ describe('lobbyMatchCode', () => {
   it.effect('is solo practice anywhere else', () =>
     Effect.gen(function* () {
       const here = { lat: 51.5, lon: -0.12 };
-      assert.isUndefined(
-        lobbyMatchCode(yield* after(...playing), { lat: 51.5, lon: -0.13 }),
-      );
-      assert.isUndefined(lobbyMatchCode(yield* after(...inLobby), here));
-      assert.isUndefined(lobbyMatchCode(yield* after(), here));
+      const elsewhere = yield* after(...playing);
+      assert.isUndefined(lobbyMatchCode(elsewhere, { lat: 51.5, lon: -0.13 }));
+      const waiting = yield* after(...inLobby);
+      assert.isUndefined(lobbyMatchCode(waiting, here));
+      const idle = yield* after();
+      assert.isUndefined(lobbyMatchCode(idle, here));
     }),
   );
 });
@@ -65,10 +67,8 @@ describe('lobbyMatchCode', () => {
 describe('matchStatus', () => {
   it.effect('is playing while the lobby is', () =>
     Effect.gen(function* () {
-      assert.strictEqual(
-        matchStatus(yield* after(...playing), 'ABC234'),
-        'playing',
-      );
+      const session = yield* after(...playing);
+      assert.strictEqual(matchStatus(session, 'ABC234'), 'playing');
     }),
   );
 
@@ -89,15 +89,11 @@ describe('matchStatus', () => {
         LobbyEvents.Disconnected(),
         LobbyEvents.Leave(),
       ]) {
-        assert.strictEqual(
-          matchStatus(yield* after(...playing, end), 'ABC234'),
-          'closed',
-        );
+        const ended = yield* after(...playing, end);
+        assert.strictEqual(matchStatus(ended, 'ABC234'), 'closed');
       }
-      assert.strictEqual(
-        matchStatus(yield* after(...playing), 'XYZ789'),
-        'closed',
-      );
+      const otherMatch = yield* after(...playing);
+      assert.strictEqual(matchStatus(otherMatch, 'XYZ789'), 'closed');
     }),
   );
 });

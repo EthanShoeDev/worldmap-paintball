@@ -128,22 +128,19 @@ export class Elevation extends Context.Service<
           TERRAIN_ZOOM,
           1 / TILE_PIXELS,
         );
-        const tiles = new Map(
-          yield* Effect.forEach(
-            ids,
-            (id) =>
-              fetchTile(
-                client,
-                tileUrl(TERRARIUM_URL, id),
-                decodeTerrarium,
-              ).pipe(Effect.map((heights) => [tileKey(id), heights] as const)),
-            { concurrency: 'unbounded' },
-          ).pipe(
-            Effect.mapError((cause) =>
-              ElevationError.make({ message: `Terrarium: ${cause.message}` }),
+        const entries = yield* Effect.forEach(
+          ids,
+          (id) =>
+            fetchTile(client, tileUrl(TERRARIUM_URL, id), decodeTerrarium).pipe(
+              Effect.map((heights) => [tileKey(id), heights] as const),
             ),
+          { concurrency: 'unbounded' },
+        ).pipe(
+          Effect.mapError((cause) =>
+            ElevationError.make({ message: `Terrarium: ${cause.message}` }),
           ),
         );
+        const tiles = new Map(entries);
         const pixel = (x: number, y: number) =>
           tiles.get(
             tileKey({

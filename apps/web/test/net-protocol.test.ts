@@ -62,29 +62,29 @@ const events: ReadonlyArray<NetEvent> = [
 describe('net protocol', () => {
   it.effect('round-trips a player state', () =>
     Effect.gen(function* () {
-      const wire = yield* overTheWire(yield* encodePlayerState(state));
-      assert.deepStrictEqual(
-        yield* decodePlayerState(wire),
-        Option.some(state),
-      );
+      const encoded = yield* encodePlayerState(state);
+      const wire = yield* overTheWire(encoded);
+      const decoded = yield* decodePlayerState(wire);
+      assert.deepStrictEqual(decoded, Option.some(state));
     }),
   );
 
   it.effect('round-trips a world snapshot', () =>
     Effect.gen(function* () {
-      const wire = yield* overTheWire(yield* encodeWorldSnapshot(world));
-      assert.deepStrictEqual(
-        yield* decodeWorldSnapshot(wire),
-        Option.some(world),
-      );
+      const encoded = yield* encodeWorldSnapshot(world);
+      const wire = yield* overTheWire(encoded);
+      const decoded = yield* decodeWorldSnapshot(wire);
+      assert.deepStrictEqual(decoded, Option.some(world));
     }),
   );
 
   it.effect('round-trips every event', () =>
     Effect.gen(function* () {
       for (const event of events) {
-        const wire = yield* overTheWire(yield* encodeNetEvent(event));
-        assert.deepStrictEqual(yield* decodeNetEvent(wire), Option.some(event));
+        const encoded = yield* encodeNetEvent(event);
+        const wire = yield* overTheWire(encoded);
+        const decoded = yield* decodeNetEvent(wire);
+        assert.deepStrictEqual(decoded, Option.some(event));
       }
     }),
   );
@@ -101,46 +101,42 @@ describe('net protocol', () => {
         { ...state, weapon: undefined },
       ];
       for (const message of bad) {
-        assert.isTrue(Option.isNone(yield* decodePlayerState(message)));
+        const decoded = yield* decodePlayerState(message);
+        assert.isTrue(Option.isNone(decoded));
       }
-      assert.isTrue(
-        Option.isNone(
-          yield* decodeNetEvent({ _tag: 'Teleport', to: [0, 0, 0] }),
-        ),
-      );
-      assert.isTrue(
-        Option.isNone(
-          yield* decodeNetEvent({ _tag: 'Hit', shooter: 'a', target: 'b' }),
-        ),
-      );
-      assert.isTrue(
-        Option.isNone(
-          yield* decodeNetEvent({
-            _tag: 'Shot',
-            shooter: 'a',
-            origin: [0, 2, 0],
-            dir: [0, 0, -1],
-            weapon: 'bazooka',
-            seed: 1,
-          }),
-        ),
-      );
-      assert.isTrue(
-        Option.isNone(
-          yield* decodeNetEvent({
-            _tag: 'Shot',
-            shooter: 'a',
-            origin: [0, 2, 0],
-            dir: [0, 0, -1],
-            seed: 1,
-          }),
-        ),
-      );
-      assert.isTrue(
-        Option.isNone(
-          yield* decodeWorldSnapshot({ players: [{ id: 'x' }], scores: [] }),
-        ),
-      );
+      const unknownTag = yield* decodeNetEvent({
+        _tag: 'Teleport',
+        to: [0, 0, 0],
+      });
+      assert.isTrue(Option.isNone(unknownTag));
+      const missingFields = yield* decodeNetEvent({
+        _tag: 'Hit',
+        shooter: 'a',
+        target: 'b',
+      });
+      assert.isTrue(Option.isNone(missingFields));
+      const unknownWeapon = yield* decodeNetEvent({
+        _tag: 'Shot',
+        shooter: 'a',
+        origin: [0, 2, 0],
+        dir: [0, 0, -1],
+        weapon: 'bazooka',
+        seed: 1,
+      });
+      assert.isTrue(Option.isNone(unknownWeapon));
+      const missingWeapon = yield* decodeNetEvent({
+        _tag: 'Shot',
+        shooter: 'a',
+        origin: [0, 2, 0],
+        dir: [0, 0, -1],
+        seed: 1,
+      });
+      assert.isTrue(Option.isNone(missingWeapon));
+      const badSnapshot = yield* decodeWorldSnapshot({
+        players: [{ id: 'x' }],
+        scores: [],
+      });
+      assert.isTrue(Option.isNone(badSnapshot));
     }),
   );
 

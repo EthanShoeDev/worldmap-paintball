@@ -78,7 +78,8 @@ export class ImageryError extends Schema.TaggedError<
 >()('ImageryError', { cause: Schema.Defect() }) {}
 
 const fetchTile = Effect.fn('fetchTile')(function* (tile: Tile) {
-  const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
+  const httpClient = yield* HttpClient.HttpClient;
+  const client = HttpClient.filterStatusOk(httpClient);
   const response = yield* client.get(imageryTileUrl(tile));
   const bytes = yield* response.arrayBuffer;
   return yield* Effect.tryPromise({
