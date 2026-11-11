@@ -1,5 +1,7 @@
 import '@tanstack/react-start/client-only';
 import { useAtom } from '@effect/atom-react';
+import { regions } from '@worldmap-paintball/api-contract/coverage';
+import { Array as Arr } from 'effect';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setWorkerUrl } from 'maplibre-gl';
@@ -23,7 +25,12 @@ const style = 'https://tiles.openfreemap.org/styles/liberty';
 // Panning stops about 100 km past the covered regions: enough to see the
 // border, not enough to wander off to places arenas cannot be built.
 const maxBounds = coverageBounds(1);
-const initialBounds = coverageBounds(0);
+// The lower 48 first: framing Alaska and Hawaii as well would shrink them to
+// a corner of the screen.
+const initialBounds = coverageBounds(
+  0,
+  Arr.filter(regions, ({ id }) => id !== 'us-ak' && id !== 'us-hi'),
+);
 
 const ArenaSquare = ({ center }: { readonly center: Coordinates }) => (
   <Source type='geojson' data={arenaSquare(center, arenaHalfSize)}>

@@ -50,10 +50,11 @@ describe('arenaSquare', () => {
 });
 
 describe('coverageBounds', () => {
-  it('frames North Carolina with the margin', () => {
+  it('frames every state with the margin, up to the antimeridian', () => {
     const [west, south, east, north] = coverageBounds(1);
-    // Murphy in the far west and Cape Hatteras in the east.
-    assert.isTrue(west < -84 - 1 && east > -75.5 + 1);
-    assert.isTrue(south < 33.85 - 0.9 && north > 36.58 + 0.9);
+    assert.strictEqual(west, -180);
+    // The Big Island, Utqiagvik and Maine's eastern tip.
+    assert.isTrue(south < 18.9 - 0.9 && north > 71.3 + 0.9);
+    assert.isTrue(east > -66.9 + 0.9);
   });
 });

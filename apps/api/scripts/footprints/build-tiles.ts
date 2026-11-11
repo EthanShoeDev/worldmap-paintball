@@ -1,18 +1,20 @@
 #!/usr/bin/env bun
-// Buckets Microsoft's ML building footprints for one coverage region into the
+// Buckets Microsoft's ML building footprints for coverage regions into the
 // pack files BuildingFootprints reads (src/footprints.ts), under
-// `<out>/footprints/v1/<region>/`.
+// `<out>/footprints/v1/<region>/`, one region after another.
 //
-//   bun run footprints:build us-nc
+//   bun run footprints:build us-nc us-va
+//   bun run footprints:build all
 //   unzip -p NorthCarolina.geojson.zip | bun run footprints:build us-nc --input -
 //
 // Without --input it downloads the GlobalMLBuildingFootprints files whose z9
-// quadkeys touch the region (cached under --downloads). --input reads one
-// GeoJSON file instead, one Feature per line, gzipped if it ends in .gz.
+// quadkeys touch each region (cached under --downloads, so neighbours share
+// them). --input reads one GeoJSON file for a single region instead, one
+// Feature per line, gzipped if it ends in .gz.
 import { BunRuntime, BunServices } from '@effect/platform-bun';
 import {
+  inRegion,
   type Region,
-  regionAt,
   regions,
 } from '@worldmap-paintball/api-contract/coverage';
 import {
@@ -138,14 +140,11 @@ const touchesRegion = (region: Region, rect: Bounds) => {
   ) {
     return false;
   }
-  const centre = regionAt((south + north) / 2, (west + east) / 2);
   return (
-    Option.exists(centre, ({ id }) => id === region.id) ||
-    Arr.some(region.boundary, (point, index) =>
-      segmentTouches(
-        point,
-        region.boundary[(index + 1) % region.boundary.length] ?? point,
-        rect,
+    inRegion(region, (south + north) / 2, (west + east) / 2) ||
+    Arr.some(region.rings, (ring) =>
+      Arr.some(ring, (point, index) =>
+        segmentTouches(point, ring[(index + 1) % ring.length] ?? point, rect),
       ),
     )
   );
@@ -247,37 +246,32 @@ const makeBuckets = (region: Region) => {
   return { tiles, counts, addLine };
 };
 
-const build = Effect.fn('buildFootprintTiles')(function* (options: {
-  readonly region: string;
-  readonly out: Option.Option<string>;
-  readonly input: Option.Option<string>;
-  readonly downloads: Option.Option<string>;
-  readonly location: string;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
+const get = Effect.fn('get')(function* (url: string) {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.retryTransient({ times: 3 }),
   );
-  const started = yield* Clock.currentTimeMillis;
+  return yield* HttpClientRequest.get(url).pipe(
+    HttpClientRequest.setHeader('User-Agent', USER_AGENT),
+    client.execute,
+  );
+});
 
-  const found = Arr.findFirst(regions, ({ id }) => id === options.region);
-  if (Option.isNone(found)) {
-    return yield* BuildError.make({
-      message: `Unknown region ${options.region}; coverage has ${Arr.join(
-        Arr.map(regions, ({ id }) => id),
-        ', ',
-      )}`,
-    });
-  }
-  const region = found.value;
-  const out = Option.isSome(options.out)
-    ? options.out.value
-    : yield* defaultFootprintsDir;
-  const downloads = Option.isSome(options.downloads)
-    ? options.downloads.value
-    : path.join(path.dirname(out), 'footprints-source');
+const buildRegion = Effect.fn('buildFootprintTiles')(function* (
+  region: Region,
+  options: {
+    readonly out: string;
+    readonly input: Option.Option<string>;
+    readonly downloads: string;
+    readonly location: string;
+    // The text of DATASET_LINKS, empty with --input.
+    readonly datasetLinks: string;
+  },
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const started = yield* Clock.currentTimeMillis;
+  const { out, downloads } = options;
   const buckets = makeBuckets(region);
 
   const consume = <E>(stream: Stream.Stream<string, E>) =>
@@ -285,44 +279,40 @@ const build = Effect.fn('buildFootprintTiles')(function* (options: {
       Effect.sync(() => Arr.forEach(chunk, buckets.addLine)),
     );
 
-  const get = (url: string) =>
-    HttpClientRequest.get(url).pipe(
-      HttpClientRequest.setHeader('User-Agent', USER_AGENT),
-      client.execute,
-    );
-
   // Untrusted rows: only files on Microsoft's host, for quadkeys some arena
   // in the region reads.
-  const sourceFiles = Effect.fn('sourceFiles')(function* () {
-    const csv = yield* get(DATASET_LINKS).pipe(
-      Effect.flatMap((response) => response.text),
-    );
+  const sourceFiles = () => {
     const host = new URL(DATASET_LINKS).host;
-    const rows = Arr.flatMap(Arr.drop(Str.split('\n')(csv), 1), (row) => {
-      const [location, quadkey = '', url = ''] = Str.split(',')(Str.trim(row));
-      const parsed = URL.parse(url);
-      return location === options.location &&
-        /^[0-3]{1,20}$/.test(quadkey) &&
-        parsed?.protocol === 'https:' &&
-        parsed.host === host &&
-        touchesRegion(region, reach(tileBounds(quadkeyTile(quadkey))))
-        ? [
-            {
-              quadkey,
-              url,
-              file: path.join(
-                downloads,
-                `${options.location}-${quadkey}-${path.basename(parsed.pathname)}`,
-              ),
-            },
-          ]
-        : [];
-    });
+    const rows = Arr.flatMap(
+      Arr.drop(Str.split('\n')(options.datasetLinks), 1),
+      (row) => {
+        const [location, quadkey = '', url = ''] = Str.split(',')(
+          Str.trim(row),
+        );
+        const parsed = URL.parse(url);
+        return location === options.location &&
+          /^[0-3]{1,20}$/.test(quadkey) &&
+          parsed?.protocol === 'https:' &&
+          parsed.host === host &&
+          touchesRegion(region, reach(tileBounds(quadkeyTile(quadkey))))
+          ? [
+              {
+                quadkey,
+                url,
+                file: path.join(
+                  downloads,
+                  `${options.location}-${quadkey}-${path.basename(parsed.pathname)}`,
+                ),
+              },
+            ]
+          : [];
+      },
+    );
     return Arr.sort(
       rows,
       Order.mapInput(Str.Order, ({ quadkey }: { quadkey: string }) => quadkey),
     );
-  });
+  };
 
   const download = Effect.fn('download')(function* (url: string, file: string) {
     if (yield* fs.exists(file)) return;
@@ -346,7 +336,7 @@ const build = Effect.fn('buildFootprintTiles')(function* (options: {
         : lines(fs.stream(input), Str.endsWith('.gz')(input)),
     );
   } else {
-    const files = yield* sourceFiles();
+    const files = sourceFiles();
     if (files.length === 0) {
       return yield* BuildError.make({
         message: `No ${options.location} files touch ${region.id}`,
@@ -443,11 +433,63 @@ const build = Effect.fn('buildFootprintTiles')(function* (options: {
   );
 });
 
+const build = Effect.fn('buildFootprints')(function* (options: {
+  readonly regions: ReadonlyArray<string>;
+  readonly out: Option.Option<string>;
+  readonly input: Option.Option<string>;
+  readonly downloads: Option.Option<string>;
+  readonly location: string;
+}) {
+  const path = yield* Path.Path;
+  const ids = Arr.contains(options.regions, 'all')
+    ? Arr.map(regions, ({ id }) => id)
+    : options.regions;
+  const selected = Arr.filter(regions, ({ id }) => Arr.contains(ids, id));
+  const unknown = Arr.filter(
+    ids,
+    (id) => !Arr.some(regions, (region) => region.id === id),
+  );
+  if (unknown.length > 0) {
+    return yield* BuildError.make({
+      message: `Unknown region ${Arr.join(unknown, ', ')}; coverage has all, ${Arr.join(
+        Arr.map(regions, ({ id }) => id),
+        ', ',
+      )}`,
+    });
+  }
+  if (Option.isSome(options.input) && selected.length !== 1) {
+    return yield* BuildError.make({
+      message: '--input holds one region; name exactly one',
+    });
+  }
+  const out = Option.isSome(options.out)
+    ? options.out.value
+    : yield* defaultFootprintsDir;
+  const downloads = Option.isSome(options.downloads)
+    ? options.downloads.value
+    : path.join(path.dirname(out), 'footprints-source');
+  const datasetLinks = Option.isSome(options.input)
+    ? ''
+    : yield* get(DATASET_LINKS).pipe(
+        Effect.flatMap((response) => response.text),
+      );
+  for (const region of selected) {
+    yield* buildRegion(region, {
+      out,
+      input: options.input,
+      downloads,
+      location: options.location,
+      datasetLinks,
+    });
+  }
+});
+
 const command = Command.make(
   'build-tiles',
   {
-    region: Argument.String('region').pipe(
-      Argument.withDescription('Coverage region id, such as us-nc'),
+    regions: Argument.String('region').pipe(
+      Argument.withDescription('Coverage region ids, such as us-nc, or all'),
+      Argument.variadic({ min: 1 }),
     ),
     out: Flag.String('out').pipe(
       Flag.withDescription('Output directory (default <repo>/tmp/footprints)'),

@@ -1,4 +1,7 @@
-import { regions } from '@worldmap-paintball/api-contract/coverage';
+import {
+  type Region,
+  regions,
+} from '@worldmap-paintball/api-contract/coverage';
 import { Array as Arr, Schema } from 'effect';
 
 // The API serves arenas between ±85° latitude (Web Mercator's usable range).
@@ -38,15 +41,24 @@ export const arenaBounds = ({ lat, lon }: Coordinates, halfSize: number) => {
   };
 };
 
-// Every covered region's bounding box, grown by `margin` degrees on each side,
-// as [west, south, east, north].
-export const coverageBounds = (margin: number) => {
+// The bounding box of `covered` (every covered region by default), grown by
+// `margin` degrees on each side, as [west, south, east, north].
+export const coverageBounds = (
+  margin: number,
+  covered: ReadonlyArray<Region> = regions,
+) => {
   // Mutable, because MapLibre's bounds types are.
   const bounds: [number, number, number, number] = [
-    Math.min(...Arr.map(regions, ({ bbox }) => bbox[0])) - margin,
-    Math.min(...Arr.map(regions, ({ bbox }) => bbox[1])) - margin,
-    Math.max(...Arr.map(regions, ({ bbox }) => bbox[2])) + margin,
-    Math.max(...Arr.map(regions, ({ bbox }) => bbox[3])) + margin,
+    Math.max(
+      -180,
+      Math.min(...Arr.map(covered, ({ bbox }) => bbox[0])) - margin,
+    ),
+    Math.min(...Arr.map(covered, ({ bbox }) => bbox[1])) - margin,
+    Math.min(
+      180,
+      Math.max(...Arr.map(covered, ({ bbox }) => bbox[2])) + margin,
+    ),
+    Math.max(...Arr.map(covered, ({ bbox }) => bbox[3])) + margin,
   ];
   return bounds;
 };

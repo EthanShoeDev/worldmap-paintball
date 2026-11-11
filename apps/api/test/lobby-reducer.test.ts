@@ -14,7 +14,7 @@ import { disconnect, reduce, type Step } from '../src/lobby/reducer.ts';
 
 const Client = ClientMessage.cases;
 const raleigh = { lat: 35.7796, lon: -78.6382, label: 'Raleigh' };
-const rockHill = { lat: 34.9249, lon: -81.0251, label: 'Rock Hill, SC' };
+const toronto = { lat: 43.6532, lon: -79.3832, label: 'Toronto, ON' };
 const offer = { _tag: 'Offer', sdp: 'v=0' } as const;
 
 const run = (
@@ -272,7 +272,7 @@ describe('lobby reducer', () => {
     const step = reduce(
       undefined,
       'host',
-      Client.CreateLobby.make({ name: 'Host', location: rockHill }),
+      Client.CreateLobby.make({ name: 'Host', location: toronto }),
     );
     assert.isUndefined(step.lobby);
     assert.strictEqual(rejection(step, 'host'), 'OutsideCoverage');
@@ -287,7 +287,7 @@ describe('lobby reducer', () => {
     const step = reduce(
       ready.lobby,
       'host',
-      Client.SetLocation.make({ location: rockHill }),
+      Client.SetLocation.make({ location: toronto }),
     );
     assert.strictEqual(rejection(step, 'host'), 'OutsideCoverage');
     assert.strictEqual(step.lobby, ready.lobby);

@@ -1,5 +1,5 @@
 import { ClientOnly, createFileRoute } from '@tanstack/react-router';
-import { coverageNames } from '@worldmap-paintball/api-contract/coverage';
+import { coverageName } from '@worldmap-paintball/api-contract/coverage';
 import { MAX_PLAYERS } from '@worldmap-paintball/api-contract/lobby';
 import { lazy, type ReactNode, Suspense } from 'react';
 
@@ -68,9 +68,9 @@ const Home = () => (
       <header className='flex flex-col gap-3 pt-2'>
         <Logo />
         <p className='text-muted'>
-          Your street is the arena. Pick a real place in {coverageNames}, and
-          its roads, houses and hills become a paintball map for up to{' '}
-          {MAX_PLAYERS} players.
+          Your street is the arena. Pick a real place in {coverageName}, and its
+          roads, houses and hills become a paintball map for up to {MAX_PLAYERS}{' '}
+          players.
         </p>
       </header>
       <ClientOnly>

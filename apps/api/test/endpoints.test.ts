@@ -124,7 +124,7 @@ const MapDataUnreachable = Layer.succeed(
 describe('Arena coverage and rate limit', () => {
   it.effect('refuses uncovered places before baking', () =>
     Effect.gen(function* () {
-      const response = yield* send('/api/arenas?lat=34.9249&lon=-81.0251', {
+      const response = yield* send('/api/arenas?lat=43.6532&lon=-79.3832', {
         mapData: MapDataUnreachable,
       });
       assert.strictEqual(response.status, 422);

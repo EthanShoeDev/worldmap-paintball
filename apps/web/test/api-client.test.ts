@@ -26,12 +26,12 @@ describe('apiErrorMessage', () => {
         Effect.tryPromise({
           try: () =>
             callApi((api) =>
-              api.arenas.get({ query: { lat: 34.9249, lon: -81.0251 } }),
+              api.arenas.get({ query: { lat: 43.6532, lon: -79.3832 } }),
             ),
           catch: apiErrorMessage,
         }),
       );
-      assert.strictEqual(message, 'Only North Carolina for now');
+      assert.strictEqual(message, 'Only the United States for now');
     }),
   );
 
@@ -42,7 +42,7 @@ describe('apiErrorMessage', () => {
     );
     assert.strictEqual(
       apiErrorMessage(OutsideCoverage.make({ message: 'nope' })),
-      'Only North Carolina for now',
+      'Only the United States for now',
     );
     assert.strictEqual(
       apiErrorMessage(MapDataError.make({ message: 'Overpass: down' })),
