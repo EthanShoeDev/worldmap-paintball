@@ -30,7 +30,16 @@ export default defineConfig({
     vscode: true,
   },
   nixPackages: [],
-  // knip.ts adds the Worker entry alchemy names as a string, which shoemaker's
-  // generated entries can't express.
-  unmanaged: ['knip.ts'],
+  unmanaged: [
+    // knip.ts adds the Worker entry alchemy names as a string, which
+    // shoemaker's generated entries can't express.
+    'knip.ts',
+    // The API's dev server runs under varlock for FOOTPRINTS_DIR.
+    'apps/api/package.json',
+    // Both packages typecheck their scripts/ build tools.
+    'apps/api/tsconfig.json',
+    'packages/api-contract/tsconfig.json',
+    // Alchemy dev stubs, the lobby socket proxy and import protection rules.
+    'apps/web/vite.config.ts',
+  ],
 });
